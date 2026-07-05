@@ -14,13 +14,11 @@ violations=$(
     wfdir="$ghd/workflows"
     [ -d "$wfdir" ] || continue
     # 中央リポジトリ自身は対象外
-    case "$repo" in */reusable-workflows) continue ;; esac
+    # 注: macOSの/bin/sh(bash 3.2)は $( ) 内のcaseパターンを誤解析するため、caseを使わない
+    [ "${repo##*/}" = "reusable-workflows" ] && continue
     # okamyuji所有リポジトリのみ対象（サードパーティのクローンは除外）
     url=$(git -C "$repo" config --get remote.origin.url 2>/dev/null || echo "")
-    case "$url" in
-      *okamyuji*) ;;
-      *) continue ;;
-    esac
+    printf '%s' "$url" | grep -q "okamyuji" || continue
     if ! grep -rq "okamyuji/reusable-workflows/.github/workflows/.*@v1" "$wfdir"; then
       echo "NOT-UNIFIED $repo"
     fi
