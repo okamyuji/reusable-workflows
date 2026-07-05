@@ -1,0 +1,71 @@
+name: Node CI (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Node.js version"
+        type: string
+        default: "22"
+      lint-command:
+        description: "Lint command (runs via detected package manager)"
+        type: string
+        default: "run --if-present lint"
+      typecheck-command:
+        description: "Typecheck command"
+        type: string
+        default: "run --if-present typecheck"
+      test-command:
+        description: "Test command"
+        type: string
+        default: "run --if-present test"
+      working-directory:
+        description: "Directory containing package.json"
+        type: string
+        default: "."
+
+jobs:
+  node-ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up pnpm
+        if: steps.pm.outputs.name == 'pnpm'
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ steps.pm.outputs.name }}
+          cache-dependency-path: ${{ inputs.working-directory }}
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ steps.pm.outputs.name }}" = "pnpm" ]; then
+            pnpm install --frozen-lockfile
+          else
+            npm ci
+          fi
+
+      - name: Lint
+        run: ${{ steps.pm.outputs.name }} ${{ inputs.lint-command }}
+
+      - name: Typecheck
+        run: ${{ steps.pm.outputs.name }} ${{ inputs.typecheck-command }}
+
+      - name: Test
+        run: ${{ steps.pm.outputs.name }} ${{ inputs.test-command }}

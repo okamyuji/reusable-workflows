@@ -1,0 +1,99 @@
+name: Rails CI (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      lint-command:
+        description: "Lint command"
+        type: string
+        default: "bin/rubocop -f github"
+      security-scan:
+        description: "Run brakeman and bundler-audit"
+        type: boolean
+        default: true
+      run-tests:
+        description: "Run the test job"
+        type: boolean
+        default: true
+      test-command:
+        description: "Test command"
+        type: string
+        default: "bin/rails db:test:prepare test"
+      with-mysql:
+        description: "Attach a MySQL 8 service container to the test job"
+        type: boolean
+        default: false
+
+jobs:
+  scan_ruby:
+    if: inputs.security-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - name: Brakeman
+        run: bin/brakeman --no-pager
+      - name: Bundler audit
+        run: bin/bundler-audit --update || bundle exec bundler-audit check --update
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - name: Lint
+        run: ${{ inputs.lint-command }}
+
+  test:
+    if: inputs.run-tests && !inputs.with-mysql
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - name: Test
+        run: ${{ inputs.test-command }}
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: tmp/screenshots
+          if-no-files-found: ignore
+
+  test-mysql:
+    if: inputs.run-tests && inputs.with-mysql
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DB_HOST: 127.0.0.1
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - name: Test
+        run: ${{ inputs.test-command }}
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: tmp/screenshots
+          if-no-files-found: ignore

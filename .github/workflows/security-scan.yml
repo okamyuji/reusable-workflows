@@ -1,0 +1,17 @@
+name: Security scan (reusable)
+
+on:
+  workflow_call:
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          # PR起点の実行でもトークンが必須（v2以降の仕様）。
+          # 参照: memory/reference_gitleaks_action_v2_token.md
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
