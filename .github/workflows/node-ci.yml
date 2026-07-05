@@ -45,13 +45,20 @@ jobs:
       - name: Set up pnpm
         if: steps.pm.outputs.name == 'pnpm'
         uses: pnpm/action-setup@v4
+        with:
+          # アクションの入力は defaults.run.working-directory の影響を受けない
+          # ため、packageManager を読む package.json を明示する。
+          package_json_file: ${{ inputs.working-directory }}/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ inputs.node-version }}
           cache: ${{ steps.pm.outputs.name }}
-          cache-dependency-path: ${{ inputs.working-directory }}
+          # hashFiles はディレクトリに一致しないため、ロックファイルを直接指す。
+          cache-dependency-path: |
+            ${{ inputs.working-directory }}/pnpm-lock.yaml
+            ${{ inputs.working-directory }}/package-lock.json
 
       - name: Install dependencies
         run: |
