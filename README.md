@@ -61,9 +61,14 @@ jobs:
 
 gitleaks/gitleaks-action@v3による秘密情報スキャンです。PR起点の実行に必要なGITHUB_TOKENの受け渡しを内蔵しているため、呼び出し側での設定漏れが起きません。
 
+呼び出し側ジョブには次のpermissionsが必要です。トークン権限が読み取り専用のリポジトリでは、これが無いとPRコミット一覧の取得が403（Resource not accessible by integration）で失敗します。
+
 ```yaml
 jobs:
   security:
+    permissions:
+      contents: read
+      pull-requests: write
     uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
 ```
 
