@@ -41,15 +41,13 @@ jobs:
   lockfile:
     if: inputs.lockfile-check
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           working-directory: ${{ inputs.working-directory }}
       - name: Verify Gemfile.lock is self-consistent
+        working-directory: ${{ inputs.working-directory }}
         run: |
           # .bundle/configのfrozen=trueは環境変数より優先されるためlocal configで解除する
           bundle config set --local frozen false
@@ -62,9 +60,6 @@ jobs:
   scan_ruby:
     if: inputs.security-scan
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
@@ -72,15 +67,14 @@ jobs:
           bundler-cache: true
           working-directory: ${{ inputs.working-directory }}
       - name: Brakeman
+        working-directory: ${{ inputs.working-directory }}
         run: bin/brakeman --no-pager
       - name: Bundler audit
+        working-directory: ${{ inputs.working-directory }}
         run: bin/bundler-audit --update || bundle exec bundler-audit check --update
 
   lint:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
@@ -88,14 +82,12 @@ jobs:
           bundler-cache: true
           working-directory: ${{ inputs.working-directory }}
       - name: Lint
+        working-directory: ${{ inputs.working-directory }}
         run: ${{ inputs.lint-command }}
 
   test:
     if: inputs.run-tests && !inputs.with-mysql
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
@@ -103,6 +95,7 @@ jobs:
           bundler-cache: true
           working-directory: ${{ inputs.working-directory }}
       - name: Test
+        working-directory: ${{ inputs.working-directory }}
         run: ${{ inputs.test-command }}
       - name: Upload screenshots on failure
         if: failure()
@@ -129,9 +122,6 @@ jobs:
           --health-retries 5
     env:
       DB_HOST: 127.0.0.1
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
@@ -139,6 +129,7 @@ jobs:
           bundler-cache: true
           working-directory: ${{ inputs.working-directory }}
       - name: Test
+        working-directory: ${{ inputs.working-directory }}
         run: ${{ inputs.test-command }}
       - name: Upload screenshots on failure
         if: failure()
