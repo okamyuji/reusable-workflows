@@ -34,7 +34,9 @@ jobs:
 
 ### rails-ci.yml
 
-brakeman＋bundler-audit、rubocop、railsテストを実行します。MySQLサービスコンテナが必要な場合は`with-mysql: true`を渡します。
+brakeman＋bundler-audit、rubocop、railsテスト、Gemfile.lock整合性検証を実行します。MySQLサービスコンテナが必要な場合は`with-mysql: true`を渡します。
+
+lockfileジョブはGemfile.lockを`bundle lock`で再生成して差分が出たら失敗します（dependabotのgem更新が残す古いCHECKSUMSエントリの早期検出。不要な場合は`lockfile-check: false`でオプトアウト）。
 
 ```yaml
 jobs:

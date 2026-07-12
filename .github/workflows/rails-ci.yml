@@ -23,8 +23,33 @@ on:
         description: "Attach a MySQL 8 service container to the test job"
         type: boolean
         default: false
+      lockfile-check:
+        description: "Verify Gemfile.lock is self-consistent (regenerate with bundle lock and diff)"
+        type: boolean
+        default: true
 
 jobs:
+  # Gemfile.lockの自己整合性検証。dependabotのgem更新がCHECKSUMSセクションを
+  # 更新し忘れると、frozenモードのbundle installがexit 16で全ジョブを巻き込んで
+  # 落ちる（2026-07-12 rails-state-machine-importのsorbet-static不整合で実証）。
+  # bundler-cacheを使わないのは意図的: cacheつきsetup-rubyはlockfileが壊れて
+  # いるとこの検証に到達する前に不親切なエラーで落ちるため。
+  lockfile:
+    if: inputs.lockfile-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+      - name: Verify Gemfile.lock is self-consistent
+        run: |
+          # .bundle/configのfrozen=trueは環境変数より優先されるためlocal configで解除する
+          bundle config set --local frozen false
+          bundle lock
+          git diff --exit-code Gemfile.lock || {
+            echo "::error file=Gemfile.lock::Gemfile.lock is inconsistent (stale CHECKSUMS or resolution drift). Run 'bundle config set --local frozen false && bundle lock' locally and commit the result."
+            exit 1
+          }
+
   scan_ruby:
     if: inputs.security-scan
     runs-on: ubuntu-latest
