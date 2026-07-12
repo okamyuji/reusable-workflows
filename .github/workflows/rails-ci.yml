@@ -27,6 +27,10 @@ on:
         description: "Verify Gemfile.lock is self-consistent (regenerate with bundle lock and diff)"
         type: boolean
         default: true
+      working-directory:
+        description: "Directory containing the Rails app (Gemfile)"
+        type: string
+        default: "."
 
 jobs:
   # Gemfile.lockの自己整合性検証。dependabotのgem更新がCHECKSUMSセクションを
@@ -37,9 +41,14 @@ jobs:
   lockfile:
     if: inputs.lockfile-check
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: ${{ inputs.working-directory }}
       - name: Verify Gemfile.lock is self-consistent
         run: |
           # .bundle/configのfrozen=trueは環境変数より優先されるためlocal configで解除する
@@ -53,11 +62,15 @@ jobs:
   scan_ruby:
     if: inputs.security-scan
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
+          working-directory: ${{ inputs.working-directory }}
       - name: Brakeman
         run: bin/brakeman --no-pager
       - name: Bundler audit
@@ -65,22 +78,30 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
+          working-directory: ${{ inputs.working-directory }}
       - name: Lint
         run: ${{ inputs.lint-command }}
 
   test:
     if: inputs.run-tests && !inputs.with-mysql
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
+          working-directory: ${{ inputs.working-directory }}
       - name: Test
         run: ${{ inputs.test-command }}
       - name: Upload screenshots on failure
@@ -88,7 +109,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: screenshots
-          path: tmp/screenshots
+          path: ${{ inputs.working-directory }}/tmp/screenshots
           if-no-files-found: ignore
 
   test-mysql:
@@ -108,11 +129,15 @@ jobs:
           --health-retries 5
     env:
       DB_HOST: 127.0.0.1
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
+          working-directory: ${{ inputs.working-directory }}
       - name: Test
         run: ${{ inputs.test-command }}
       - name: Upload screenshots on failure
@@ -120,5 +145,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: screenshots
-          path: tmp/screenshots
+          path: ${{ inputs.working-directory }}/tmp/screenshots
           if-no-files-found: ignore
