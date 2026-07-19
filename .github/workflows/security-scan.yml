@@ -10,7 +10,22 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v3
+
+      # 初回push（beforeがゼロSHA）ではgitleaks-actionが「初回コミットの親」という
+      # 存在しない参照でスキャン範囲を組むため必ず失敗する。
+      # このケースだけCLIの全履歴スキャンへフォールバックする。
+      # 参照: memory/reference_gitleaks_first_push.md
+      - name: Full history scan (initial push)
+        if: github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000'
+        env:
+          GITLEAKS_VERSION: 8.24.3
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks detect --source . --redact -v --exit-code=2 --no-banner
+
+      - name: Incremental scan
+        if: ${{ !(github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000') }}
+        uses: gitleaks/gitleaks-action@v3
         env:
           # PR起点の実行でもトークンが必須（v2以降の仕様）。
           # 参照: memory/reference_gitleaks_action_v2_token.md
