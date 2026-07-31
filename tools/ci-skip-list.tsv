@@ -1,0 +1,6 @@
+# ci-skip-list.tsv — check-drift.sh の non-green 許容リスト
+# 形式（TSV 3列）: <violation-type>\t<repo相対パスまたはパス末尾>\t<理由>
+# パスは違反行のパスとの末尾一致で判定される。`#` 始まりの行と空行は無視。
+NOT-UNIFIED	golang/go-image-processor	Fyne GUIビルドにxorg-dev等のシステム依存が必要で中央Goワークフローの前提に合わないため統一対象外
+NOT-UNIFIED	rails_tutorial/01_rails_philosophy	学習用チュートリアルの章別リポジトリで、章固有のCI構成を教材として保持するため統一対象外
+NOT-UNIFIED	rails_tutorial/07_deployment_operations	学習用チュートリアルの章別リポジトリで、章固有のCI構成を教材として保持するため統一対象外
