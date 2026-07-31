@@ -47,6 +47,18 @@ jobs:
       test-command: "bin/rails db:setup test test:system"
 ```
 
+lint・テスト・セキュリティスキャンを自前のジョブで持つリポジトリでも、`run-lint`/`security-scan`/`run-tests`をfalseにするとlockfileガードだけを消費できます（dependabotのbundler PRがCHECKSUMSを不完全なまま残す事故のPR段階検出）。
+
+```yaml
+jobs:
+  lockfile:
+    uses: okamyuji/reusable-workflows/.github/workflows/rails-ci.yml@v1
+    with:
+      run-lint: false
+      security-scan: false
+      run-tests: false
+```
+
 ### node-ci.yml
 
 パッケージマネージャ（pnpm/npm）をロックファイルから自動判定し、install、lint、typecheck、testを実行します。コマンドはpackage.jsonのscriptsに存在するものだけが走ります（`--if-present`）。

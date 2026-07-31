@@ -15,6 +15,10 @@ on:
         description: "Run the test job"
         type: boolean
         default: true
+      run-lint:
+        description: "Run the lint job (disable together with security-scan/run-tests to consume only the lockfile guard)"
+        type: boolean
+        default: true
       test-command:
         description: "Test command"
         type: string
@@ -35,7 +39,10 @@ on:
 jobs:
   # Gemfile.lockの自己整合性検証。dependabotのgem更新がCHECKSUMSセクションを
   # 更新し忘れると、frozenモードのbundle installがexit 16で全ジョブを巻き込んで
-  # 落ちる（2026-07-12 rails-state-machine-importのsorbet-static不整合で実証）。
+  # 落ちる（2026-07-12 rails-state-machine-importのsorbet-static不整合で実証。
+  # 2026-07-31 big_tree_tableでも再発したが、同リポジトリはrails-ci.ymlを呼んで
+  # いなかったためこのガードが走らなかった。テスト等を自前jobで持つリポジトリは
+  # run-lint/security-scan/run-tests をfalseにしてlockfileガードだけを消費できる）。
   # bundler-cacheを使わないのは意図的: cacheつきsetup-rubyはlockfileが壊れて
   # いるとこの検証に到達する前に不親切なエラーで落ちるため。
   lockfile:
@@ -74,6 +81,7 @@ jobs:
         run: bin/bundler-audit --update || bundle exec bundler-audit check --update
 
   lint:
+    if: inputs.run-lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
