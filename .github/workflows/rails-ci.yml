@@ -128,6 +128,9 @@ jobs:
   scan_ruby:
     if: inputs.security-scan
     runs-on: ubuntu-latest
+    # PR側のコードを実行するjobにはcallerが付与したpull-requests: writeを継承させない
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
@@ -144,6 +147,9 @@ jobs:
   lint:
     if: inputs.run-lint
     runs-on: ubuntu-latest
+    # PR側のコードを実行するjobにはcallerが付与したpull-requests: writeを継承させない
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
@@ -157,6 +163,9 @@ jobs:
   test:
     if: inputs.run-tests && !inputs.with-mysql
     runs-on: ubuntu-latest
+    # PR側のコードを実行するjobにはcallerが付与したpull-requests: writeを継承させない
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
@@ -177,6 +186,9 @@ jobs:
   test-mysql:
     if: inputs.run-tests && inputs.with-mysql
     runs-on: ubuntu-latest
+    # PR側のコードを実行するjobにはcallerが付与したpull-requests: writeを継承させない
+    permissions:
+      contents: read
     services:
       mysql:
         image: mysql:8.4
