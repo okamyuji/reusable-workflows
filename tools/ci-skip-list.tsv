@@ -3,3 +3,4 @@
 # パスは違反行のパスとの末尾一致で判定される。`#` 始まりの行と空行は無視。
 NOT-UNIFIED	rails_tutorial/01_rails_philosophy	学習用チュートリアルの章別リポジトリで、章固有のCI構成を教材として保持するため統一対象外
 NOT-UNIFIED	rails_tutorial/07_deployment_operations	学習用チュートリアルの章別リポジトリで、章固有のCI構成を教材として保持するため統一対象外
+NOT-UNIFIED	swift/SalesVoiceNotes	Swift/iOSアプリで中央にSwift用workflowが無く、Xcode固有のCIをリポジトリ側で保持するため統一対象外
