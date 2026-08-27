@@ -36,7 +36,20 @@ jobs:
 
 brakeman＋bundler-audit、rubocop、railsテスト、Gemfile.lock整合性検証を実行します。MySQLサービスコンテナが必要な場合は`with-mysql: true`を渡します。
 
-lockfileジョブはGemfile.lockを`bundle lock`で再生成して差分が出たら失敗します（dependabotのgem更新が残す古いCHECKSUMSエントリの早期検出。不要な場合は`lockfile-check: false`でオプトアウト）。
+lockfileジョブはGemfile.lockを`bundle lock`で再生成して差分が出たら失敗します（不要な場合は`lockfile-check: false`でオプトアウト）。不整合の主因は、Dependabot PRのGemfile.lock競合をWebエディタで手動解消した際にmain側の古いCHECKSUMSブロックが残ることです。gitはCHECKSUMSを再計算しないので、Dependabot PRの競合は手で解消せず`@dependabot recreate`をコメントしてください。
+
+`dependabot-recreate: true`を渡すと、Dependabot PRで不整合を検出したときにlockfileジョブがそのコメントを自動投稿します（同一headへの二重投稿はしません）。呼び出し側jobに`pull-requests: write`が必要です。
+
+```yaml
+jobs:
+  ci:
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: okamyuji/reusable-workflows/.github/workflows/rails-ci.yml@v1
+    with:
+      dependabot-recreate: true
+```
 
 ```yaml
 jobs:
@@ -47,7 +60,7 @@ jobs:
       test-command: "bin/rails db:setup test test:system"
 ```
 
-lint・テスト・セキュリティスキャンを自前のジョブで持つリポジトリでも、`run-lint`/`security-scan`/`run-tests`をfalseにするとlockfileガードだけを消費できます（dependabotのbundler PRがCHECKSUMSを不完全なまま残す事故のPR段階検出）。
+lint・テスト・セキュリティスキャンを自前のジョブで持つリポジトリでも、`run-lint`/`security-scan`/`run-tests`をfalseにするとlockfileガードだけを消費できます。
 
 ```yaml
 jobs:

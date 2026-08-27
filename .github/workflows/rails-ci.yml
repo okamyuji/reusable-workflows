@@ -31,18 +31,25 @@ on:
         description: "Verify Gemfile.lock is self-consistent (regenerate with bundle lock and diff)"
         type: boolean
         default: true
+      dependabot-recreate:
+        description: "On an inconsistent Gemfile.lock in a Dependabot PR, comment '@dependabot recreate' so Dependabot regenerates the lockfile (caller must grant pull-requests: write)"
+        type: boolean
+        default: false
       working-directory:
         description: "Directory containing the Rails app (Gemfile)"
         type: string
         default: "."
 
 jobs:
-  # Gemfile.lockの自己整合性検証。dependabotのgem更新がCHECKSUMSセクションを
-  # 更新し忘れると、frozenモードのbundle installがexit 16で全ジョブを巻き込んで
-  # 落ちる（2026-07-12 rails-state-machine-importのsorbet-static不整合で実証。
-  # 2026-07-31 big_tree_tableでも再発したが、同リポジトリはrails-ci.ymlを呼んで
-  # いなかったためこのガードが走らなかった。テスト等を自前jobで持つリポジトリは
-  # run-lint/security-scan/run-tests をfalseにしてlockfileガードだけを消費できる）。
+  # Gemfile.lockの自己整合性検証。GEMセクションとCHECKSUMSセクションが食い違うと
+  # frozenモードのbundle installがexit 16で全ジョブを巻き込んで落ちる。
+  # 主因はDependabot自身ではなく、Dependabot PRのGemfile.lock競合をWebエディタで
+  # 手動解消した際にmain側の古いCHECKSUMSブロックが残ること（big_tree_table
+  # PR #44/#52/#56で同型を確認）。gitはCHECKSUMSを再計算しないので、正しい復旧は
+  # `@dependabot recreate` でDependabotにlockfileを作り直させること。
+  # dependabot-recreate: true のcallerではこのjobがそのコメントを自動投稿する。
+  # テスト等を自前jobで持つリポジトリは run-lint/security-scan/run-tests を
+  # falseにしてlockfileガードだけを消費できる。
   # bundler-cacheを使わないのは意図的: cacheつきsetup-rubyはlockfileが壊れて
   # いるとこの検証に到達する前に不親切なエラーで落ちるため。
   lockfile:
@@ -55,14 +62,42 @@ jobs:
           working-directory: ${{ inputs.working-directory }}
       - name: Verify Gemfile.lock is self-consistent
         working-directory: ${{ inputs.working-directory }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECREATE_ENABLED: ${{ inputs.dependabot-recreate }}
+          IS_DEPENDABOT_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           # .bundle/configのfrozen=trueは環境変数より優先されるためlocal configで解除する
           bundle config set --local frozen false
           bundle lock
-          git diff --exit-code Gemfile.lock || {
-            echo "::error file=Gemfile.lock::Gemfile.lock is inconsistent (stale CHECKSUMS or resolution drift). Run 'bundle config set --local frozen false && bundle lock' locally and commit the result."
-            exit 1
-          }
+          if git diff --quiet Gemfile.lock; then
+            exit 0
+          fi
+          git --no-pager diff Gemfile.lock
+
+          if [ "$IS_DEPENDABOT_PR" = "true" ]; then
+            echo "::notice::Do not resolve Gemfile.lock conflicts in the web editor on Dependabot PRs; comment '@dependabot recreate' so Dependabot regenerates the lockfile."
+          fi
+
+          if [ "$RECREATE_ENABLED" = "true" ] && [ "$IS_DEPENDABOT_PR" = "true" ]; then
+            # 同じheadに対する再実行で二重投稿しないよう、head SHA入りのマーカーで冪等化する
+            marker="<!-- rails-ci lockfile recreate ${HEAD_SHA} -->"
+            if gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --jq '.[].body' | grep -qF "$marker"; then
+              echo "::notice::'@dependabot recreate' already requested for ${HEAD_SHA}"
+            elif gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "@dependabot recreate
+
+Gemfile.lock is inconsistent (stale CHECKSUMS). Asking Dependabot to recreate this PR so the lockfile is regenerated from the current base.
+${marker}"; then
+              echo "::notice::Requested '@dependabot recreate' on PR #${PR_NUMBER}"
+            else
+              echo "::warning::Could not comment on PR #${PR_NUMBER} (caller must grant 'pull-requests: write' to this job). Comment '@dependabot recreate' manually."
+            fi
+          fi
+
+          echo "::error file=Gemfile.lock::Gemfile.lock is inconsistent (stale CHECKSUMS or resolution drift). Dependabot PR: comment '@dependabot recreate'. Otherwise run 'bundle config set --local frozen false && bundle lock' locally and commit the result."
+          exit 1
 
   scan_ruby:
     if: inputs.security-scan
