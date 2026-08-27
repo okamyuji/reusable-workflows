@@ -32,7 +32,7 @@ on:
         type: boolean
         default: true
       dependabot-recreate:
-        description: "On an inconsistent Gemfile.lock in a Dependabot PR, comment '@dependabot recreate' so Dependabot regenerates the lockfile (caller must grant pull-requests: write)"
+        description: "On an inconsistent Gemfile.lock in a Dependabot PR, a separate no-checkout job comments '@dependabot recreate' so Dependabot regenerates the lockfile (caller must grant pull-requests: write)"
         type: boolean
         default: false
       working-directory:
@@ -47,55 +47,83 @@ jobs:
   # 手動解消した際にmain側の古いCHECKSUMSブロックが残ること（big_tree_table
   # PR #44/#52/#56で同型を確認）。gitはCHECKSUMSを再計算しないので、正しい復旧は
   # `@dependabot recreate` でDependabotにlockfileを作り直させること。
-  # dependabot-recreate: true のcallerではこのjobがそのコメントを自動投稿する。
   # テスト等を自前jobで持つリポジトリは run-lint/security-scan/run-tests を
   # falseにしてlockfileガードだけを消費できる。
   # bundler-cacheを使わないのは意図的: cacheつきsetup-rubyはlockfileが壊れて
   # いるとこの検証に到達する前に不親切なエラーで落ちるため。
+  # このjobはPR側のGemfile（Rubyコード）を評価するため、トークンをcontents: readに
+  # 降格する。コメント投稿はcheckoutもbundleもしない別job（lockfile-recreate）が担う。
   lockfile:
     if: inputs.lockfile-check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      inconsistent: ${{ steps.verify.outputs.inconsistent }}
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           working-directory: ${{ inputs.working-directory }}
       - name: Verify Gemfile.lock is self-consistent
+        id: verify
         working-directory: ${{ inputs.working-directory }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RECREATE_ENABLED: ${{ inputs.dependabot-recreate }}
-          IS_DEPENDABOT_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           # .bundle/configのfrozen=trueは環境変数より優先されるためlocal configで解除する
           bundle config set --local frozen false
           bundle lock
+          # 失敗ステップの出力は下流jobに渡らない可能性があるため、判定と失敗を別ステップに分ける
           if git diff --quiet Gemfile.lock; then
-            exit 0
+            echo "inconsistent=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "inconsistent=true" >> "$GITHUB_OUTPUT"
+            git --no-pager diff Gemfile.lock
           fi
-          git --no-pager diff Gemfile.lock
-
+      - name: Fail on inconsistent Gemfile.lock
+        if: steps.verify.outputs.inconsistent == 'true'
+        env:
+          IS_DEPENDABOT_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' }}
+        run: |
           if [ "$IS_DEPENDABOT_PR" = "true" ]; then
             echo "::notice::Do not resolve Gemfile.lock conflicts in the web editor on Dependabot PRs; comment '@dependabot recreate' so Dependabot regenerates the lockfile."
           fi
-
-          if [ "$RECREATE_ENABLED" = "true" ] && [ "$IS_DEPENDABOT_PR" = "true" ]; then
-            # 同じheadに対する再実行で二重投稿しないよう、head SHA入りのマーカーで冪等化する
-            marker="<!-- rails-ci lockfile recreate ${HEAD_SHA} -->"
-            if gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --jq '.[].body' | grep -qF "$marker"; then
-              echo "::notice::'@dependabot recreate' already requested for ${HEAD_SHA}"
-            elif body="$(printf '%s\n\n%s\n%s\n' '@dependabot recreate' 'Gemfile.lock is inconsistent (stale CHECKSUMS). Asking Dependabot to recreate this PR so the lockfile is regenerated from the current base.' "$marker")" \
-              && gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"; then
-              echo "::notice::Requested '@dependabot recreate' on PR #${PR_NUMBER}"
-            else
-              echo "::warning::Could not comment on PR #${PR_NUMBER} (caller must grant 'pull-requests: write' to this job). Comment '@dependabot recreate' manually."
-            fi
-          fi
-
           echo "::error file=Gemfile.lock::Gemfile.lock is inconsistent (stale CHECKSUMS or resolution drift). Dependabot PR: comment '@dependabot recreate'. Otherwise run 'bundle config set --local frozen false && bundle lock' locally and commit the result."
           exit 1
+
+  # dependabot-recreate: true のcallerで、Dependabot PRのlockfileが不整合だったときに
+  # `@dependabot recreate` をコメントする。PR側のファイルは一切評価しない
+  # （checkoutなし）ので、pull-requests: write のトークンをここに限定できる。
+  lockfile-recreate:
+    if: >-
+      always()
+      && inputs.lockfile-check
+      && inputs.dependabot-recreate
+      && needs.lockfile.outputs.inconsistent == 'true'
+      && github.event_name == 'pull_request'
+      && github.event.pull_request.user.login == 'dependabot[bot]'
+    needs: lockfile
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Request @dependabot recreate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # 同じheadに対する再実行で二重投稿しないよう、head SHA入りのマーカーで冪等化する
+          marker="<!-- rails-ci lockfile recreate ${HEAD_SHA} -->"
+          if gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --jq '.[].body' | grep -qF "$marker"; then
+            echo "::notice::'@dependabot recreate' already requested for ${HEAD_SHA}"
+            exit 0
+          fi
+          body="$(printf '%s\n\n%s\n%s\n' '@dependabot recreate' 'Gemfile.lock is inconsistent (stale CHECKSUMS). Asking Dependabot to recreate this PR so the lockfile is regenerated from the current base.' "$marker")"
+          if gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"; then
+            echo "::notice::Requested '@dependabot recreate' on PR #${PR_NUMBER}"
+          else
+            echo "::warning::Could not comment on PR #${PR_NUMBER} (caller must grant 'pull-requests: write'). Comment '@dependabot recreate' manually."
+          fi
 
   scan_ruby:
     if: inputs.security-scan
