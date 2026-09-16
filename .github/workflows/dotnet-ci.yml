@@ -51,14 +51,14 @@ jobs:
 
       - name: Line coverage (80% or more)
         run: |
-          coverage_file=$(find tests/Core.Tests -name coverage.cobertura.xml | head -1)
+          coverage_file=$(find . -name coverage.cobertura.xml | head -1)
           line_rate=$(grep -o 'line-rate="[0-9.]*"' "$coverage_file" | head -1 | grep -o '[0-9.]*')
           echo "line-rate: $line_rate"
           awk -v r="$line_rate" 'BEGIN { exit !(r >= 0.80) }'
 
       - name: CRAP score (all functions under 15)
         run: |
-          coverage_file=$(find tests/Core.Tests -name coverage.cobertura.xml | head -1)
+          coverage_file=$(find . -name coverage.cobertura.xml | head -1)
           dotnet crap analyze src/Core --coverage "$coverage_file" --threshold 15 --min-crap 15 --output crap.json
           methods=$(python3 -c "import json; print(len(json.load(open('crap.json'))['methods']))")
           echo "methods at or above threshold: $methods"
@@ -96,7 +96,14 @@ jobs:
         run: |
           dotnet-stryker --project Core.csproj --test-runner mtp \
             --since:${{ steps.since.outputs.ref }} \
-            --break-at 100 --threshold-low 100 --threshold-high 100
+            --break-at 100 --threshold-low 100 --threshold-high 100 --diag
+
+      - name: Print Stryker diagnostic log on failure
+        if: failure()
+        working-directory: src/Core
+        run: |
+          log=$(find StrykerOutput -name '*.log' | head -1)
+          cat "$log"
 
   e2e:
     if: inputs.run-e2e
@@ -137,6 +144,11 @@ jobs:
           bin=$(find godot-bin -maxdepth 2 -iname 'Godot_*_mono*' -type f | head -1)
           chmod +x "$bin"
           echo "bin=$bin" >> "$GITHUB_OUTPUT"
+
+      - name: Build the Game project
+        run: |
+          csproj=$(find . -maxdepth 1 -name '*.csproj' | head -1)
+          dotnet build "$csproj" -c Debug
 
       - name: Import project
         run: timeout 120 "${{ steps.godot.outputs.bin }}" --headless --path . --import
