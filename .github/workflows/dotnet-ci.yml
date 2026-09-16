@@ -92,15 +92,14 @@ jobs:
           fi
 
       - name: Mutation test (changed lines, 100% killed)
-        working-directory: src/Core
         run: |
-          dotnet-stryker --project Core.csproj --test-runner mtp \
+          coreproj=$(find src/Core -maxdepth 1 -name '*.csproj' | head -1)
+          dotnet-stryker --project "$(basename "$coreproj")" --test-runner mtp \
             --since:${{ steps.since.outputs.ref }} \
             --break-at 100 --threshold-low 100 --threshold-high 100 --diag
 
       - name: Print Stryker diagnostic log on failure
         if: failure()
-        working-directory: src/Core
         run: |
           log=$(find StrykerOutput -name '*.log' | head -1)
           cat "$log"
