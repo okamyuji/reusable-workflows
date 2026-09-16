@@ -1,0 +1,153 @@
+name: .NET CI (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: ".NET SDK version"
+        type: string
+        default: "10.0.x"
+      godot-version:
+        description: "Godot version used to build the Game project and run E2E flows"
+        type: string
+        default: "4.7.2"
+      godot-sha512:
+        description: "SHA-512 of Godot_v<godot-version>-stable_mono_linux_x86_64.zip, from that release's SHA512-SUMS.txt"
+        type: string
+        required: true
+      run-e2e:
+        description: "Run tests/e2e/flows.json's scenarios through the built Game project"
+        type: boolean
+        default: true
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Format
+        run: |
+          sln=$(find . -maxdepth 1 -name '*.sln' | head -1)
+          dotnet format "$sln" --verify-no-changes
+
+      - name: Build
+        run: |
+          sln=$(find . -maxdepth 1 -name '*.sln' | head -1)
+          dotnet build "$sln" -c Debug
+
+      - name: Unit tests with coverage
+        run: |
+          dotnet test tests/Core.Tests -c Debug --no-build -- \
+            --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+
+      - name: Line coverage (80% or more)
+        run: |
+          coverage_file=$(find tests/Core.Tests -name coverage.cobertura.xml | head -1)
+          line_rate=$(grep -o 'line-rate="[0-9.]*"' "$coverage_file" | head -1 | grep -o '[0-9.]*')
+          echo "line-rate: $line_rate"
+          awk -v r="$line_rate" 'BEGIN { exit !(r >= 0.80) }'
+
+      - name: CRAP score (all functions under 15)
+        run: |
+          coverage_file=$(find tests/Core.Tests -name coverage.cobertura.xml | head -1)
+          dotnet crap analyze src/Core --coverage "$coverage_file" --threshold 15 --min-crap 15 --output crap.json
+          methods=$(python3 -c "import json; print(len(json.load(open('crap.json'))['methods']))")
+          echo "methods at or above threshold: $methods"
+          test "$methods" -eq 0
+
+      - name: Doclint
+        run: ./tools/doclint.sh
+
+  mutation-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Install Stryker.NET
+        run: dotnet tool install -g dotnet-stryker
+
+      - name: Resolve since-ref
+        id: since
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "ref=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mutation test (changed lines, 100% killed)
+        working-directory: src/Core
+        run: |
+          dotnet-stryker --project Core.csproj --test-runner mtp \
+            --since:${{ steps.since.outputs.ref }} \
+            --break-at 100 --threshold-low 100 --threshold-high 100
+
+  e2e:
+    if: inputs.run-e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Cache Godot
+        id: godot-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: godot-bin
+          key: godot-${{ inputs.godot-version }}-mono-linux-x86_64-${{ inputs.godot-sha512 }}
+
+      - name: Download Godot
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p godot-bin
+          zip="Godot_v${{ inputs.godot-version }}-stable_mono_linux_x86_64.zip"
+          url="https://github.com/godotengine/godot/releases/download/${{ inputs.godot-version }}-stable/$zip"
+          curl -sSfL -o "godot-bin/$zip" "$url"
+          actual=$(sha512sum "godot-bin/$zip" | cut -d' ' -f1)
+          if [ "$actual" != "${{ inputs.godot-sha512 }}" ]; then
+            echo "SHA-512の不一致です。expected=${{ inputs.godot-sha512 }} actual=$actual"
+            exit 1
+          fi
+          unzip -q "godot-bin/$zip" -d godot-bin
+          rm "godot-bin/$zip"
+
+      - name: Locate Godot binary
+        id: godot
+        run: |
+          bin=$(find godot-bin -maxdepth 2 -iname 'Godot_*_mono*' -type f | head -1)
+          chmod +x "$bin"
+          echo "bin=$bin" >> "$GITHUB_OUTPUT"
+
+      - name: Import project
+        run: timeout 120 "${{ steps.godot.outputs.bin }}" --headless --path . --import
+
+      - name: Check flows coverage
+        run: |
+          "${{ steps.godot.outputs.bin }}" --headless --path . -- --check-flows
+
+      - name: Run each scenario
+        run: |
+          for scenario in tests/e2e/scenarios/*.json; do
+            echo "=== $scenario ==="
+            "${{ steps.godot.outputs.bin }}" --headless --fixed-fps 60 --path . -- --e2e "$scenario"
+          done

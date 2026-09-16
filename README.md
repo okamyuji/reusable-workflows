@@ -84,6 +84,25 @@ jobs:
       node-version: "22"
 ```
 
+### dotnet-ci.yml
+
+書式（`dotnet format`）、ビルド、ユニットテストと行カバレッジ、CRAP値、変異テスト（Stryker.NET、変更行のみ）、文書の機械検査（`tools/doclint.sh`）、Godot本体でのE2E主要導線の走破を実行します。`Core`（Godotに依存しないC#クラスライブラリ）と`tests/Core.Tests`、`tools/doclint.sh`、`tests/e2e/`を持つ構成を前提にします。
+
+Godot本体はGitHub Releasesの公式zipをダウンロードし、呼び出し側が渡す`godot-sha512`（そのリリースの`SHA512-SUMS.txt`に載る値）で検証してから使う仕組みです。E2Eジョブは`run-e2e: false`で止められます。
+
+```yaml
+jobs:
+  ci:
+    uses: okamyuji/reusable-workflows/.github/workflows/dotnet-ci.yml@v1
+    with:
+      godot-sha512: "1855960b27ee3ef5e66e5e228cced69d55637b24334a7411162687dcd077d8f9f645348cdb8eae984bec8135d49ed855a1e3a16476786b8bce60774fd8402d13"
+  security:
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
+```
+
 ### security-scan.yml
 
 gitleaks/gitleaks-action@v3による秘密情報スキャンです。PR起点の実行に必要なGITHUB_TOKENの受け渡しを内蔵しているため、呼び出し側での設定漏れが起きません。
