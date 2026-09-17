@@ -86,9 +86,11 @@ jobs:
 
 ### dotnet-ci.yml
 
-書式（`dotnet format`）、ビルド、ユニットテストと行カバレッジ、CRAP値、変異テスト（Stryker.NET、変更行のみ）、文書の機械検査（`tools/doclint.sh`）、Godot本体でのE2E主要導線の走破を実行します。`Core`（Godotに依存しないC#クラスライブラリ）と`tests/Core.Tests`、`tools/doclint.sh`、`tests/e2e/`を持つ構成を前提にします。
+書式（`dotnet format`）、ビルド、ユニットテストと行カバレッジ、CRAP値、変異テスト（Stryker.NET）、文書の機械検査（`tools/doclint.sh`）、Godot本体でのE2E主要導線の走破を実行します。`Core`（Godotに依存しないC#クラスライブラリ）と`tests/Core.Tests`、`tools/doclint.sh`、`tests/e2e/`を持つ構成を前提にします。
 
 Godot本体はGitHub Releasesの公式zipをダウンロードし、呼び出し側が渡す`godot-sha512`（そのリリースの`SHA512-SUMS.txt`に載る値）で検証してから使う仕組みです。E2Eジョブは`run-e2e: false`で止められます。
+
+変異テストはStryker.NETの`--since`機能を使いますが、差分にC#以外のファイルが1つでも含まれると、Strykerは安全側に倒れて`Core`の全変異を対象にします。ほぼ毎回の差分にドキュメントやJSON、ワークフローファイルが混じるため、実質は`Core`全体の変異スコアに対するゲートです。閾値は`mutation-score-threshold`（既定60）で呼び出し側から調整します。
 
 ```yaml
 jobs:

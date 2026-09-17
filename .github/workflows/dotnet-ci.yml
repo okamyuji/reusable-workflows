@@ -19,6 +19,10 @@ on:
         description: "Run tests/e2e/flows.json's scenarios through the built Game project"
         type: boolean
         default: true
+      mutation-score-threshold:
+        description: "Stryker.NET break-at / threshold-low percentage. Stryker's --since falls back to testing every mutant whenever a non-C# file changed anywhere in the diff, so this gates the whole Core mutation score, not just changed lines."
+        type: number
+        default: 60
 
 jobs:
   quality-gate:
@@ -91,12 +95,14 @@ jobs:
             echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Mutation test (changed lines, 100% killed)
+      - name: Mutation test (Core, overall score at or above the threshold)
         run: |
           coreproj=$(find src/Core -maxdepth 1 -name '*.csproj' | head -1)
+          low=${{ inputs.mutation-score-threshold }}
+          high=$((low >= 80 ? low : 80))
           dotnet-stryker --project "$(basename "$coreproj")" --test-runner mtp \
             --since:${{ steps.since.outputs.ref }} \
-            --break-at 100 --threshold-low 100 --threshold-high 100 --diag
+            --break-at "$low" --threshold-low "$low" --threshold-high "$high" --diag
 
       - name: Print Stryker diagnostic log on failure
         if: failure()
