@@ -95,7 +95,6 @@ jobs:
   security:
     permissions:
       contents: read
-      pull-requests: write
     uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
 ```
 
@@ -110,7 +109,6 @@ jobs:
   security:
     permissions:
       contents: read
-      pull-requests: write
     uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
 ```
 
@@ -131,7 +129,6 @@ jobs:
   security:
     permissions:
       contents: read
-      pull-requests: write
     uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
 ```
 
@@ -146,7 +143,6 @@ jobs:
   security:
     permissions:
       contents: read
-      pull-requests: write
     uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
 ```
 
