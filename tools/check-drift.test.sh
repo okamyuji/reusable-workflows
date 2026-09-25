@@ -29,9 +29,12 @@ mkrepo nl-first-evil "https://NLSECRET2@evil.example/x${nl}https://github.com/ok
 mkrepo extra-path 'https://github.com/okamyuji/extra/PATHSECRET'
 mkrepo other-owner 'https://github.com/someone/else'
 
-out=$(sh "$here/check-drift.sh" "$base" || true)
+rc=0
+out=$(sh "$here/check-drift.sh" "$base") || rc=$?
 
 fail=0
+# 呼び出し側は終了コードで違反を判定するため、違反ありなら1でなければならない
+[ "$rc" -eq 1 ] || { echo "FAIL: exit status $rc, want 1"; fail=1; }
 # expect: 出力に $1 と完全に一致する行があること。部分一致では余分な文字の混入を見逃す
 expect() { printf '%s\n' "$out" | grep -qxF "$1" || { echo "FAIL: missing line: $1"; fail=1; }; }
 # reject: 出力のどこにも $1 が現れないこと。秘密値が行の一部に混ざる漏れも検出する
