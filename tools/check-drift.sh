@@ -20,7 +20,11 @@ violations=$(
     [ -d "$wfdir" ] || continue
     # GitHub上のokamyuji所有リポジトリのみ対象。それ以外のremoteはURLを出力に
     # 含めない（埋め込まれた認証情報を表示しないため）
-    url=$(git -C "$repo" config --get remote.origin.url 2>/dev/null || echo "")
+    # 改行入りの値は行単位のgrep/sedをすり抜けて出力に混ざるため1行目だけを使い、
+    # 認証情報を含みうるクエリとフラグメントは落とす
+    url=$(git -C "$repo" config --get remote.origin.url 2>/dev/null | head -n 1 || echo "")
+    url=${url%%\?*}
+    url=${url%%#*}
     printf '%s' "$url" | grep -Eq '^(https://([^@/]+@)?github\.com/|git@github\.com:|ssh://git@github\.com/)okamyuji/' || continue
     # 1つのGitHubリポジトリに.githubを持つサブディレクトリが複数ある場合があるため、
     # リポジトリ内のパスまで含めて識別する
@@ -29,6 +33,8 @@ violations=$(
     slug=${slug%/}
     slug=${slug%.git}
     slug=${slug%/}
+    # 想定外の形はリポジトリ名以外の文字列を出力しうるため表示しない
+    printf '%s' "$slug" | grep -Eqx 'okamyuji/[A-Za-z0-9._-]+' || continue
     prefix=$(git -C "$repo" rev-parse --show-prefix 2>/dev/null || echo "")
     id="$slug${prefix:+/${prefix%/}}"
     # 中央リポジトリ自身は対象外
