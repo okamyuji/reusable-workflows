@@ -9,6 +9,8 @@
 set -eu
 
 BASE="${1:?usage: sh tools/check-drift.sh <directory containing repositories>}"
+# 走査できない引数を「違反なし」と誤報告しないよう、ディレクトリ以外は拒否する
+[ -d "$BASE" ] || { echo "not a directory: $BASE" >&2; exit 2; }
 SKIP_LIST="$(dirname "$0")/ci-skip-list.tsv"
 
 violations=$(
@@ -19,7 +21,7 @@ violations=$(
     # GitHub上のokamyuji所有リポジトリのみ対象。それ以外のremoteはURLを出力に
     # 含めない（埋め込まれた認証情報を表示しないため）
     url=$(git -C "$repo" config --get remote.origin.url 2>/dev/null || echo "")
-    printf '%s' "$url" | grep -Eq 'github\.com[:/]okamyuji/' || continue
+    printf '%s' "$url" | grep -Eq '^(https://([^@/]+@)?github\.com/|git@github\.com:|ssh://git@github\.com/)okamyuji/' || continue
     # 1つのGitHubリポジトリに.githubを持つサブディレクトリが複数ある場合があるため、
     # リポジトリ内のパスまで含めて識別する
     # 注: macOSの/bin/sh(bash 3.2)は $( ) 内のcaseパターンを誤解析するため、caseを使わない
