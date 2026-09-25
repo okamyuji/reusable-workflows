@@ -141,7 +141,7 @@ jobs:
 
 ## ドリフト検査
 
-`tools/check-drift.sh`は、引数で渡したディレクトリ配下のリポジトリを検査します。検査するのは、このリポジトリを`@v1`で参照しているかと、gitleaksを直接使ってGITHUB_TOKENが漏れていないかです。
+`tools/check-drift.sh`は、引数で渡したディレクトリ配下のリポジトリを検査します。検査するのは、このリポジトリを`@v1`で参照しているかと、gitleaks-actionを直接使うワークフローにGITHUB_TOKENの指定があるかです。違反は`<owner>/<repo>`の形で表示します。
 
 ```sh
 sh tools/check-drift.sh <リポジトリを置いたディレクトリ>

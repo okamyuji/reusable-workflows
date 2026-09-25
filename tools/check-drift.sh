@@ -1,13 +1,14 @@
 #!/bin/sh
 # check-drift.sh — 品質ゲートのドリフト検査
-# ~/devs 配下のokamyujiリポジトリを走査し、次の違反を検出する。
+# 引数で渡したディレクトリ配下のokamyujiリポジトリを走査し、次の違反を検出する。
+# 違反はローカルのパスではなく <owner>/<repo>[/<リポジトリ内のパス>] で表示する。
 #   NOT-UNIFIED        reusable-workflows@v1 を参照していないワークフロー保有リポジトリ
 #   GITLEAKS-NO-TOKEN  gitleaks-action を直接使いながら GITHUB_TOKEN が無いワークフロー
-# 既知の許容例外は tools/ci-skip-list.tsv（TSV: type<TAB>path末尾<TAB>理由）で除外する。
+# 既知の許容例外は tools/ci-skip-list.tsv（TSV: type<TAB>対象<TAB>理由）で除外する。
 # 終了コード: 違反0件（skip後）なら0、違反ありなら1。依存は find / grep / git / awk のみ。
 set -eu
 
-BASE="${1:-$HOME/devs}"
+BASE="${1:?usage: sh tools/check-drift.sh <directory containing repositories>}"
 SKIP_LIST="$(dirname "$0")/ci-skip-list.tsv"
 
 violations=$(
@@ -15,49 +16,39 @@ violations=$(
     repo=$(dirname "$ghd")
     wfdir="$ghd/workflows"
     [ -d "$wfdir" ] || continue
-    # 中央リポジトリ自身は対象外
-    # 注: macOSの/bin/sh(bash 3.2)は $( ) 内のcaseパターンを誤解析するため、caseを使わない
-    [ "${repo##*/}" = "reusable-workflows" ] && continue
     # okamyuji所有リポジトリのみ対象（サードパーティのクローンは除外）
     url=$(git -C "$repo" config --get remote.origin.url 2>/dev/null || echo "")
     printf '%s' "$url" | grep -q "okamyuji" || continue
+    # 1つのGitHubリポジトリに.githubを持つサブディレクトリが複数ある場合があるため、
+    # リポジトリ内のパスまで含めて識別する
+    # 注: macOSの/bin/sh(bash 3.2)は $( ) 内のcaseパターンを誤解析するため、caseを使わない
+    slug=${url#*github.com[:/]}
+    slug=${slug%.git}
+    prefix=$(git -C "$repo" rev-parse --show-prefix 2>/dev/null || echo "")
+    id="$slug${prefix:+/${prefix%/}}"
+    # 中央リポジトリ自身は対象外
+    [ "$id" = "okamyuji/reusable-workflows" ] && continue
     if ! grep -rq "okamyuji/reusable-workflows/.github/workflows/.*@v1" "$wfdir"; then
-      echo "NOT-UNIFIED $repo"
+      echo "NOT-UNIFIED $id"
     fi
     for f in "$wfdir"/*.yml "$wfdir"/*.yaml; do
       [ -f "$f" ] || continue
       if grep -q "gitleaks/gitleaks-action@" "$f" && ! grep -q "GITHUB_TOKEN" "$f"; then
-        echo "GITLEAKS-NO-TOKEN $f"
+        echo "GITLEAKS-NO-TOKEN $id/.github/workflows/${f##*/}"
       fi
     done
   done
 )
 
-# skip リストによる除外（TYPE 完全一致 + パス末尾一致）
+# skip リストによる除外（TYPE 完全一致 + 対象の完全一致）
 skipped=0
 if [ -n "$violations" ] && [ -f "$SKIP_LIST" ]; then
   total=$(printf '%s\n' "$violations" | grep -c . || true)
-  violations=$(printf '%s\n' "$violations" | awk -v skipfile="$SKIP_LIST" '
-    BEGIN {
-      n = 0
-      while ((getline line < skipfile) > 0) {
-        if (line ~ /^#/ || line ~ /^[ \t]*$/) continue
-        split(line, f, "\t")
-        n++; stype[n] = f[1]; spath[n] = f[2]
-      }
-      close(skipfile)
-    }
-    {
-      vtype = $1; vpath = $2
-      skip = 0
-      for (i = 1; i <= n; i++) {
-        if (vtype != stype[i]) continue
-        plen = length(spath[i]); vlen = length(vpath)
-        if (vpath == spath[i]) { skip = 1; break }
-        if (vlen > plen && substr(vpath, vlen - plen, plen + 1) == "/" spath[i]) { skip = 1; break }
-      }
-      if (!skip) print
-    }')
+  skips=$(awk -F '\t' '!/^#/ && NF >= 2 { print $1 " " $2 }' "$SKIP_LIST")
+  # 空のパターンは全行に一致するため、許容リストが空なら除外しない
+  if [ -n "$skips" ]; then
+    violations=$(printf '%s\n' "$violations" | grep -vxF -e "$skips" || true)
+  fi
   remaining=$(printf '%s\n' "$violations" | grep -c . || true)
   skipped=$((total - remaining))
 fi
