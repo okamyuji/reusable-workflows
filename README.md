@@ -99,6 +99,21 @@ jobs:
     uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
 ```
 
+### python-ci.yml
+
+依存関係をインストールしてから、テストを実行するワークフローです。依存関係は`requirements.txt`から`uv pip install --system`で入れるため、`requirements.txt`をコミットしておく必要があります。Pythonのバージョンは`3.13`です。テストコマンドの既定値は`python -m pytest`です。
+
+```yaml
+jobs:
+  ci:
+    uses: okamyuji/reusable-workflows/.github/workflows/python-ci.yml@v1
+  security:
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
+```
+
 ### dotnet-ci.yml
 
 書式（`dotnet format`）、ビルド、ユニットテストと行カバレッジ、CRAP値、変異テスト（Stryker.NET）、文書の機械検査（`tools/doclint.sh`）、Godot本体でのE2E主要導線の走破を実行します。`Core`（Godotに依存しないC#クラスライブラリ）と`tests/Core.Tests`、`tools/doclint.sh`、`tests/e2e/`を持つ構成を前提にします。
