@@ -84,6 +84,21 @@ jobs:
       node-version: "22"
 ```
 
+### rust-ci.yml
+
+`cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、テストを順に実行するワークフローです。ツールチェーンには最新の`stable`を使います。clippyは`--locked`で実行するため、`Cargo.lock`をコミットしておく必要があります。テストコマンドの既定値は`cargo test --all-targets`です。TestcontainersなどDockerを使うテストも、`ubuntu-latest`ランナーのDockerでそのまま動きます。
+
+```yaml
+jobs:
+  ci:
+    uses: okamyuji/reusable-workflows/.github/workflows/rust-ci.yml@v1
+  security:
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
+```
+
 ### dotnet-ci.yml
 
 書式（`dotnet format`）、ビルド、ユニットテストと行カバレッジ、CRAP値、変異テスト（Stryker.NET）、文書の機械検査（`tools/doclint.sh`）、Godot本体でのE2E主要導線の走破を実行します。`Core`（Godotに依存しないC#クラスライブラリ）と`tests/Core.Tests`、`tools/doclint.sh`、`tests/e2e/`を持つ構成を前提にします。
