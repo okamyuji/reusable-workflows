@@ -1,6 +1,5 @@
 # ci-skip-list.tsv — check-drift.sh の non-green 許容リスト
 # 形式（TSV 3列）: <violation-type>\t<owner/repo[/リポジトリ内のパス]>\t<理由>
 # 対象は check-drift.sh が表示する違反行の対象と完全一致で判定される。`#` 始まりの行と空行は無視。
-NOT-UNIFIED	okamyuji/rails_tutorial/01_rails_philosophy	学習用チュートリアルの章別リポジトリで、章固有のCI構成を教材として保持するため統一対象外
-NOT-UNIFIED	okamyuji/rails_tutorial/07_deployment_operations	学習用チュートリアルの章別リポジトリで、章固有のCI構成を教材として保持するため統一対象外
-NOT-UNIFIED	okamyuji/SalesVoiceNotes	Swift/iOSアプリで中央にSwift用workflowが無く、Xcode固有のCIをリポジトリ側で保持するため統一対象外
+NOT-UNIFIED	okamyuji/rails_tutorial/01_rails_philosophy	記事のコード例として置いた章ディレクトリ内のworkflowで、GitHubはリポジトリ直下以外のworkflowを実行しないため統一対象外
+NOT-UNIFIED	okamyuji/rails_tutorial/07_deployment_operations	記事のコード例として置いた章ディレクトリ内のworkflowで、GitHubはリポジトリ直下以外のworkflowを実行しないため統一対象外
