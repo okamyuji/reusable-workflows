@@ -17,7 +17,6 @@ jobs:
       # PRでは、gitleaks-action@v3がPRのコミット一覧をページングせずに取得し、
       # 31件目以降のコミットをスキャン範囲から落とす。
       # この2つのケースはCLIで直接スキャンする。
-      # 参照: memory/reference_gitleaks_first_push.md
       - name: Install gitleaks CLI
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000')
         env:
@@ -45,5 +44,4 @@ jobs:
         uses: gitleaks/gitleaks-action@v3
         env:
           # トークンはv2以降の仕様で必須。
-          # 参照: memory/reference_gitleaks_action_v2_token.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
