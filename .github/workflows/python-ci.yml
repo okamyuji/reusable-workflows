@@ -1,0 +1,31 @@
+name: Python CI (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      test-command:
+        description: "Test command"
+        type: string
+        default: "python -m pytest"
+
+jobs:
+  python-ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - uses: astral-sh/setup-uv@v10.1.0
+
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Test
+        run: ${{ inputs.test-command }}
