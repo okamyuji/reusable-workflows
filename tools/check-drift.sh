@@ -16,25 +16,28 @@ violations=$(
     repo=$(dirname "$ghd")
     wfdir="$ghd/workflows"
     [ -d "$wfdir" ] || continue
-    # okamyuji所有リポジトリのみ対象（サードパーティのクローンは除外）
+    # GitHub上のokamyuji所有リポジトリのみ対象。それ以外のremoteはURLを出力に
+    # 含めない（埋め込まれた認証情報を表示しないため）
     url=$(git -C "$repo" config --get remote.origin.url 2>/dev/null || echo "")
-    printf '%s' "$url" | grep -q "okamyuji" || continue
+    printf '%s' "$url" | grep -Eq 'github\.com[:/]okamyuji/' || continue
     # 1つのGitHubリポジトリに.githubを持つサブディレクトリが複数ある場合があるため、
     # リポジトリ内のパスまで含めて識別する
     # 注: macOSの/bin/sh(bash 3.2)は $( ) 内のcaseパターンを誤解析するため、caseを使わない
     slug=${url#*github.com[:/]}
+    slug=${slug%/}
     slug=${slug%.git}
+    slug=${slug%/}
     prefix=$(git -C "$repo" rev-parse --show-prefix 2>/dev/null || echo "")
     id="$slug${prefix:+/${prefix%/}}"
     # 中央リポジトリ自身は対象外
     [ "$id" = "okamyuji/reusable-workflows" ] && continue
     if ! grep -rq "okamyuji/reusable-workflows/.github/workflows/.*@v1" "$wfdir"; then
-      echo "NOT-UNIFIED $id"
+      printf 'NOT-UNIFIED %s\n' "$id"
     fi
     for f in "$wfdir"/*.yml "$wfdir"/*.yaml; do
       [ -f "$f" ] || continue
       if grep -q "gitleaks/gitleaks-action@" "$f" && ! grep -q "GITHUB_TOKEN" "$f"; then
-        echo "GITLEAKS-NO-TOKEN $id/.github/workflows/${f##*/}"
+        printf 'GITLEAKS-NO-TOKEN %s\n' "$id/.github/workflows/${f##*/}"
       fi
     done
   done
@@ -54,7 +57,7 @@ if [ -n "$violations" ] && [ -f "$SKIP_LIST" ]; then
 fi
 
 if [ -n "$violations" ]; then
-  echo "$violations"
+  printf '%s\n' "$violations"
   count=$(printf '%s\n' "$violations" | grep -c .)
   echo "---"
   if [ "$skipped" -gt 0 ]; then echo "skipped (allowed): $skipped"; fi
