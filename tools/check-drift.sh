@@ -25,7 +25,7 @@ violations=$(
     # 1つのGitHubリポジトリに.githubを持つサブディレクトリが複数ある場合があるため、
     # リポジトリ内のパスまで含めて識別する
     # 注: macOSの/bin/sh(bash 3.2)は $( ) 内のcaseパターンを誤解析するため、caseを使わない
-    slug=${url#*github.com[:/]}
+    slug=$(printf '%s' "$url" | sed -E 's#^(https://([^@/]+@)?github\.com/|git@github\.com:|ssh://git@github\.com/)##')
     slug=${slug%/}
     slug=${slug%.git}
     slug=${slug%/}
