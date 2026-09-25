@@ -10,23 +10,40 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # 初回push（beforeがゼロSHA）ではgitleaks-actionが「初回コミットの親」という
       # 存在しない参照でスキャン範囲を組むため必ず失敗する。
-      # このケースだけCLIの全履歴スキャンへフォールバックする。
+      # PRでは、gitleaks-action@v3がPRのコミット一覧をページングせずに取得し、
+      # 31件目以降のコミットをスキャン範囲から落とす。
+      # この2つのケースはCLIで直接スキャンする。
       # 参照: memory/reference_gitleaks_first_push.md
-      - name: Full history scan (initial push)
-        if: github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000'
+      - name: Install gitleaks CLI
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000')
         env:
           GITLEAKS_VERSION: 8.24.3
+          GITLEAKS_SHA256: 9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
         run: |
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
-          ./gitleaks detect --source . --redact -v --exit-code=2 --no-banner
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfLo "$archive" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" gitleaks
+
+      - name: Full history scan (initial push)
+        if: github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000'
+        run: ./gitleaks detect --source . --redact -v --exit-code=2 --no-banner
+
+      - name: Pull request scan (all PR commits)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: ./gitleaks detect --source . --redact -v --exit-code=2 --no-banner --log-opts="--no-merges ${BASE_SHA}..${HEAD_SHA}"
 
       - name: Incremental scan
-        if: ${{ !(github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000') }}
+        if: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000') }}
         uses: gitleaks/gitleaks-action@v3
         env:
-          # PR起点の実行でもトークンが必須（v2以降の仕様）。
+          # トークンはv2以降の仕様で必須。
           # 参照: memory/reference_gitleaks_action_v2_token.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
