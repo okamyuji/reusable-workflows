@@ -122,7 +122,7 @@ jobs:
 
 ### security-scan.yml
 
-gitleaks/gitleaks-action@v3による秘密情報スキャンです。PR起点の実行に必要なGITHUB_TOKENの受け渡しを内蔵しているため、呼び出し側での設定漏れが起きません。
+gitleaksによる秘密情報スキャンです。PRでは、gitleaks CLIがPRの全コミット（`base.sha..head.sha`）を検査します。gitleaks-action@v3はPRのコミット一覧をページングせずに取得するため、31件目以降のコミットを検査できません。push起点の実行はgitleaks-action@v3を使い、必要なGITHUB_TOKENの受け渡しもこのワークフローが内蔵しています。呼び出し側で設定を忘れる心配はありません。
 
 呼び出し側ジョブには次のpermissionsが必要です。トークン権限が読み取り専用のリポジトリでは、これが無いとPRコミット一覧の取得が403（Resource not accessible by integration）で失敗します。
 
