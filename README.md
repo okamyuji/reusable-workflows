@@ -86,7 +86,15 @@ jobs:
 
 ### rust-ci.yml
 
-`cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、テストを順に実行するワークフローです。ツールチェーンには最新の`stable`を使います。clippyは`--locked`で実行するため、`Cargo.lock`をコミットしておく必要があります。テストコマンドの既定値は`cargo test --all-targets`です。TestcontainersなどDockerを使うテストも、`ubuntu-latest`ランナーのDockerでそのまま動きます。
+`cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、テストを順に実行するワークフローです。ツールチェーンには最新の`stable`を使います。clippyは`--locked`で実行するため、`Cargo.lock`をコミットしておく必要があります。テストコマンドの既定値は`cargo test --all-targets`です。TestcontainersなどDockerを使うテストも、`ubuntu-latest`ランナーのDockerでそのまま動きます。GUIやトレイのクレートのようにLinuxのシステムライブラリが要る場合は、`apt-packages`にaptのパッケージ名を空白区切りで渡します。既定値は空で、何もインストールしません。
+
+```yaml
+jobs:
+  ci:
+    uses: okamyuji/reusable-workflows/.github/workflows/rust-ci.yml@v1
+    with:
+      apt-packages: libgtk-3-dev libxdo-dev libayatana-appindicator3-dev
+```
 
 ```yaml
 jobs:
