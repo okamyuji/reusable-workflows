@@ -26,11 +26,17 @@ jobs:
         if: inputs.apt-packages != ''
         env:
           APT_PACKAGES: ${{ inputs.apt-packages }}
-        # 入力をrunへ直接埋め込まず環境変数で渡し、パッケージ名は単語分割だけさせる。
+        # 入力をrunへ直接埋め込まず環境変数で渡す。`-s`などを混ぜるとapt-getのオプションとして読まれ、
+        # 何もインストールせずに成功してしまうため、`-`で始まる語は拒否する。
         run: |
+          read -r -a apt_packages <<< "$APT_PACKAGES"
+          for package in "${apt_packages[@]}"; do
+            case "$package" in
+              -*) echo "apt-packages must contain package names, not options: $package" >&2; exit 1 ;;
+            esac
+          done
           sudo apt-get update
-          # shellcheck disable=SC2086
-          sudo apt-get install -y --no-install-recommends $APT_PACKAGES
+          sudo apt-get install -y --no-install-recommends "${apt_packages[@]}"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
