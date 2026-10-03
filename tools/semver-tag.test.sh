@@ -76,4 +76,16 @@ run
 check "メッセージ由来のコマンドを実行しない" "no" "$( [ -e "$base/work/pwned" ] || [ -e "$base/work/pwned2" ] && echo yes || echo no)"
 check "そのcommitも patch で付く" v1.0.1 "$(remote_tag_of "$u1")"
 
+# 5. vX.Y.Z の形でないタグ（rc など）は基準に使わない
+setup
+commit "feat: base"
+git -C "$base/work" tag -a v1.0.0 -m v1.0.0
+commit "fix: x"; r1=$(sha_of HEAD)
+git -C "$base/work" tag -a v1.2.3-rc1 -m rc
+commit "fix: y"; r2=$(sha_of HEAD)
+git -C "$base/work" push -q origin HEAD:main v1.0.0 v1.2.3-rc1
+run || true
+check "rc タグを無視して続きを付ける" v1.0.1 "$(remote_tag_of "$r1")"
+check "その次も続けて付ける"           v1.0.2 "$(remote_tag_of "$r2")"
+
 exit $fail
