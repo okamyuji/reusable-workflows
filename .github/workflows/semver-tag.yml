@@ -1,0 +1,57 @@
+name: Semver tag (reusable)
+
+# main に入った commit ごとに、Conventional Commits の種類から次の版を決めて注釈付きタグを付ける。
+# feat!: や本文の BREAKING CHANGE は major、feat は minor、それ以外は patch。
+# 呼び出し側のジョブに permissions: contents: write が必要。
+on:
+  workflow_call:
+
+concurrency:
+  group: semver-tag-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Tag each new commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # >>> semver-tag
+          set -eu
+          # commit メッセージは外部入力なので、grep で種類を判定するだけにして展開しない
+          last=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || true)
+          if [ -n "$last" ]; then
+            ver=${last#v}
+            range="$last..HEAD"
+          else
+            ver=0.0.0
+            range=HEAD
+          fi
+          major=${ver%%.*}
+          rest=${ver#*.}
+          minor=${rest%%.*}
+          patch=${rest#*.}
+          for sha in $(git rev-list --reverse "$range"); do
+            if git tag --points-at "$sha" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              continue
+            fi
+            if git log -1 --format=%s "$sha" | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:' \
+              || git log -1 --format=%b "$sha" | grep -qE '^BREAKING[ -]CHANGE:'; then
+              major=$((major + 1)); minor=0; patch=0
+            elif git log -1 --format=%s "$sha" | grep -qE '^feat(\([^)]*\))?:'; then
+              minor=$((minor + 1)); patch=0
+            else
+              patch=$((patch + 1))
+            fi
+            tag="v$major.$minor.$patch"
+            git tag -a "$tag" -m "$tag" "$sha"
+            git push -q origin "refs/tags/$tag"
+            echo "$tag $sha"
+          done
+          # <<< semver-tag

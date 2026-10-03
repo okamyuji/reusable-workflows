@@ -154,6 +154,25 @@ jobs:
     uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
 ```
 
+### semver-tag.yml
+
+mainに入ったcommitごとに、Conventional Commitsの種類から次の版を決め、`vX.Y.Z`の注釈付きタグを付けます。`feat!:`のような`!`付きの種類と、本文の`BREAKING CHANGE:`はmajor、`feat:`はminor、それ以外はpatchを1つ上げます。1回のpushに複数のcommitが含まれていても、古い順に1つずつタグを付ける仕組みです。
+
+タグが1つも無いリポジトリでは、数え始めは`0.0.0`です。途中から導入する場合は、最初に基準となるタグ（例: `v0.1.0`）を手で付けておけば、その続きの番号になります。すでに版のタグが付いたcommitは飛ばすので、再実行しても同じタグが重ねて付くことはありません。
+
+タグをpushするため、呼び出し側ジョブには`contents: write`が必要です。PRでは動かさず、mainへのpushだけで呼び出してください。
+
+```yaml
+jobs:
+  release:
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+    uses: okamyuji/reusable-workflows/.github/workflows/semver-tag.yml@v1
+```
+
+版を決める処理は`tools/semver-tag.test.sh`で検証しています（`sh tools/semver-tag.test.sh`）。
+
 ## リポジトリ固有ジョブの扱い
 
 共通化率100%は目標ではありません。リポジトリ固有の要件（特殊なスキャン、E2E、デプロイ）はinputsで吸収しきれない場合、各リポジトリの固有ジョブとして残してください。
