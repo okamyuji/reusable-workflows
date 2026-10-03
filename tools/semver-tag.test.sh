@@ -29,7 +29,7 @@ setup() {
 }
 commit() { git -C "$base/work" commit -q --allow-empty -m "$1"; }
 run() { (cd "$base/work" && sh "$base/semver-tag.sh" >/dev/null); }
-remote_tag_of() { git -C "$base/remote.git" tag --points-at "$1" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true; }
+remote_tag_of() { git -C "$base/remote.git" tag --points-at "$1" | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || true; }
 sha_of() { git -C "$base/work" rev-parse "$1"; }
 
 # 1. 既存タグから、commit ごとに種類に応じて上げる
@@ -84,8 +84,33 @@ commit "fix: x"; r1=$(sha_of HEAD)
 git -C "$base/work" tag -a v1.2.3-rc1 -m rc
 commit "fix: y"; r2=$(sha_of HEAD)
 git -C "$base/work" push -q origin HEAD:main v1.0.0 v1.2.3-rc1
-run || true
+run
 check "rc タグを無視して続きを付ける" v1.0.1 "$(remote_tag_of "$r1")"
 check "その次も続けて付ける"           v1.0.2 "$(remote_tag_of "$r2")"
+
+# 6. 先頭が 0 の版番号のタグ（v1.0.08）は基準に使わない（8進数として算術式が止まるため）
+setup
+commit "feat: base"
+git -C "$base/work" tag -a v1.0.0 -m v1.0.0
+commit "fix: x"; z1=$(sha_of HEAD)
+git -C "$base/work" tag -a v1.0.08 -m bad
+git -C "$base/work" push -q origin HEAD:main v1.0.0 v1.0.08
+run
+check "先頭0のタグを無視して付ける" v1.0.1 "$(remote_tag_of "$z1")"
+
+# 7. 日付が前後した分岐とマージでも、祖先から順に付ける
+setup
+commit "feat: base"
+git -C "$base/work" tag -a v1.0.0 -m v1.0.0
+git -C "$base/work" switch -q -c side
+GIT_COMMITTER_DATE='2030-01-01T00:00:00Z' git -C "$base/work" commit -q --allow-empty -m "fix: parent"; o1=$(sha_of HEAD)
+GIT_COMMITTER_DATE='2020-01-01T00:00:00Z' git -C "$base/work" commit -q --allow-empty -m "fix: child"; o2=$(sha_of HEAD)
+git -C "$base/work" switch -q -
+GIT_COMMITTER_DATE='2025-01-01T00:00:00Z' git -C "$base/work" commit -q --allow-empty -m "fix: main"
+git -C "$base/work" merge -q --no-ff -m "chore: merge" side
+git -C "$base/work" push -q origin HEAD:main v1.0.0
+run
+p=$(remote_tag_of "$o1" | sed 's/^v1\.0\.//'); c=$(remote_tag_of "$o2" | sed 's/^v1\.0\.//')
+check "祖先の番号が子より小さい" yes "$( [ -n "$p" ] && [ -n "$c" ] && [ "$p" -lt "$c" ] && echo yes || echo no)"
 
 exit $fail

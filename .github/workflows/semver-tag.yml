@@ -27,8 +27,8 @@ jobs:
           # >>> semver-tag
           set -eu
           # commit メッセージは外部入力なので、grep で種類を判定するだけにして展開しない
-          # v1.2.3-rc1 のような形を算術式に入れないよう、厳密に vX.Y.Z の形のタグだけを基準にする
-          last=$(git tag --merged HEAD --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
+          # v1.2.3-rc1 や先頭が0の v1.0.08 を算術式に入れないよう、厳密に vX.Y.Z の形のタグだけを基準にする
+          last=$(git tag --merged HEAD --sort=-v:refname | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | head -n 1 || true)
           if [ -n "$last" ]; then
             ver=${last#v}
             range="$last..HEAD"
@@ -40,8 +40,8 @@ jobs:
           rest=${ver#*.}
           minor=${rest%%.*}
           patch=${rest#*.}
-          for sha in $(git rev-list --reverse "$range"); do
-            if git tag --points-at "$sha" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+          for sha in $(git rev-list --topo-order --reverse "$range"); do
+            if git tag --points-at "$sha" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
               continue
             fi
             if git log -1 --format=%s "$sha" | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:' \
