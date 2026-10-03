@@ -1,0 +1,60 @@
+name: Semver tag (reusable)
+
+# main に入った commit ごとに、Conventional Commits の種類から次の版を決めて注釈付きタグを付ける。
+# feat!: や本文の BREAKING CHANGE は major、feat は minor、それ以外は patch。
+# 呼び出し側のジョブに permissions: contents: write が必要。
+on:
+  workflow_call:
+
+concurrency:
+  group: semver-tag-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    # 既定ブランチへの push 以外では付けない。別ブランチで番号が先に使われると main のタグ付けが止まるため
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Tag each new commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # >>> semver-tag
+          set -eu
+          # commit メッセージは外部入力なので、grep で種類を判定するだけにして展開しない
+          # v1.2.3-rc1 や先頭が0の v1.0.08 を算術式に入れないよう、厳密に vX.Y.Z の形のタグだけを基準にする
+          last=$(git tag --merged HEAD --sort=-v:refname | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | head -n 1 || true)
+          if [ -n "$last" ]; then
+            ver=${last#v}
+            range="$last..HEAD"
+          else
+            ver=0.0.0
+            range=HEAD
+          fi
+          major=${ver%%.*}
+          rest=${ver#*.}
+          minor=${rest%%.*}
+          patch=${rest#*.}
+          for sha in $(git rev-list --topo-order --reverse "$range"); do
+            if git tag --points-at "$sha" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+              continue
+            fi
+            if git log -1 --format=%s "$sha" | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:' \
+              || git log -1 --format=%b "$sha" | grep -qE '^BREAKING[ -]CHANGE:'; then
+              major=$((major + 1)); minor=0; patch=0
+            elif git log -1 --format=%s "$sha" | grep -qE '^feat(\([^)]*\))?:'; then
+              minor=$((minor + 1)); patch=0
+            else
+              patch=$((patch + 1))
+            fi
+            tag="v$major.$minor.$patch"
+            git tag -a "$tag" -m "$tag" "$sha"
+            git push -q origin "refs/tags/$tag"
+            echo "$tag $sha"
+          done
+          # <<< semver-tag
