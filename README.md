@@ -60,6 +60,8 @@ jobs:
       test-command: "bin/rails db:setup test test:system"
 ```
 
+呼び出し側でワークフロー全体の権限を`permissions: contents: read`のように絞っている場合は、`dependabot-recreate`を使わなくても呼び出し側jobに`pull-requests: write`を与えてください。lockfile-recreateジョブの権限は実行されない場合でも起動時に検査されるため、与えないとワークフローが`startup_failure`で始まりません。
+
 lint・テスト・セキュリティスキャンを自前のジョブで持つリポジトリでも、`run-lint`/`security-scan`/`run-tests`をfalseにするとlockfileガードだけを消費できます。
 
 ```yaml
