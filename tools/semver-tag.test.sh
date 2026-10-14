@@ -28,28 +28,38 @@ setup() {
   git -C "$base/work" config commit.gpgSign false
 }
 commit() { git -C "$base/work" commit -q --allow-empty -m "$1"; }
-run() { (cd "$base/work" && sh "$base/semver-tag.sh" >/dev/null); }
+run() { (cd "$base/work" && DEFAULT_BRANCH=main sh "$base/semver-tag.sh" >/dev/null); }
 remote_tag_of() { git -C "$base/remote.git" tag --points-at "$1" | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || true; }
 sha_of() { git -C "$base/work" rev-parse "$1"; }
 
-# 1. 既存タグから、commit ごとに種類に応じて上げる
+# 1. 前のタグからの commit すべてを見て、いちばん大きい上げ幅で先頭にだけ付ける
 setup
 commit "feat: init"
 git -C "$base/work" tag -a v0.1.0 -m v0.1.0
-commit "fix: a";      s1=$(sha_of HEAD)
-commit "feat: b";     s2=$(sha_of HEAD)
-commit "docs: c";     s3=$(sha_of HEAD)
-commit "feat(core)!: d"; s4=$(sha_of HEAD)
-commit "chore: e
-
-BREAKING CHANGE: x"; s5=$(sha_of HEAD)
+commit "fix: a";  a1=$(sha_of HEAD)
+commit "feat: b"
+commit "docs: c"; a3=$(sha_of HEAD)
 git -C "$base/work" push -q origin HEAD:main v0.1.0
 run
-check "fix は patch"                  v0.1.1 "$(remote_tag_of "$s1")"
-check "feat は minor"                 v0.2.0 "$(remote_tag_of "$s2")"
-check "それ以外は patch"              v0.2.1 "$(remote_tag_of "$s3")"
-check "! 付きは major"                v1.0.0 "$(remote_tag_of "$s4")"
-check "BREAKING CHANGE は major"      v2.0.0 "$(remote_tag_of "$s5")"
+check "feat を含む範囲は minor で先頭に付く" v0.2.0 "$(remote_tag_of "$a3")"
+check "途中の commit には付けない"           ""     "$(remote_tag_of "$a1")"
+commit "fix: d"
+commit "docs: e"; b2=$(sha_of HEAD)
+git -C "$base/work" push -q origin HEAD:main
+run
+check "fix と docs だけの範囲は patch" v0.2.1 "$(remote_tag_of "$b2")"
+commit "fix: f"
+commit "feat(core)!: g"
+commit "feat: h"; c3=$(sha_of HEAD)
+git -C "$base/work" push -q origin HEAD:main
+run
+check "! 付きを含む範囲は major" v1.0.0 "$(remote_tag_of "$c3")"
+commit "chore: i
+
+BREAKING CHANGE: x"; d1=$(sha_of HEAD)
+git -C "$base/work" push -q origin HEAD:main
+run
+check "本文の BREAKING CHANGE は major" v2.0.0 "$(remote_tag_of "$d1")"
 
 # 2. もう一度動かしても新しいタグは付かない
 before=$(git -C "$base/remote.git" tag | wc -l)
@@ -58,12 +68,16 @@ check "再実行でタグが増えない" "$before" "$(git -C "$base/remote.git"
 
 # 3. タグが1つも無いリポジトリは 0.0.0 から数える
 setup
-commit "feat: first"; t1=$(sha_of HEAD)
+commit "feat: first"
 commit "fix: second"; t2=$(sha_of HEAD)
 git -C "$base/work" push -q origin HEAD:main
 run
-check "タグ無しの最初の feat" v0.1.0 "$(remote_tag_of "$t1")"
-check "続く fix"              v0.1.1 "$(remote_tag_of "$t2")"
+check "タグ無しで feat を含む範囲" v0.1.0 "$(remote_tag_of "$t2")"
+setup
+commit "fix: only"; t3=$(sha_of HEAD)
+git -C "$base/work" push -q origin HEAD:main
+run
+check "タグ無しで fix だけの範囲" v0.0.1 "$(remote_tag_of "$t3")"
 
 # 4. commit メッセージの中身はコマンドとして実行されない
 setup
@@ -80,13 +94,12 @@ check "そのcommitも patch で付く" v1.0.1 "$(remote_tag_of "$u1")"
 setup
 commit "feat: base"
 git -C "$base/work" tag -a v1.0.0 -m v1.0.0
-commit "fix: x"; r1=$(sha_of HEAD)
+commit "fix: x"
 git -C "$base/work" tag -a v1.2.3-rc1 -m rc
 commit "fix: y"; r2=$(sha_of HEAD)
 git -C "$base/work" push -q origin HEAD:main v1.0.0 v1.2.3-rc1
 run
-check "rc タグを無視して続きを付ける" v1.0.1 "$(remote_tag_of "$r1")"
-check "その次も続けて付ける"           v1.0.2 "$(remote_tag_of "$r2")"
+check "rc タグを無視して v1.0.0 の続きを付ける" v1.0.1 "$(remote_tag_of "$r2")"
 
 # 6. 先頭が 0 の版番号のタグ（v1.0.08）は基準に使わない（8進数として算術式が止まるため）
 setup
@@ -98,19 +111,36 @@ git -C "$base/work" push -q origin HEAD:main v1.0.0 v1.0.08
 run
 check "先頭0のタグを無視して付ける" v1.0.1 "$(remote_tag_of "$z1")"
 
-# 7. 日付が前後した分岐とマージでも、祖先から順に付ける
+# 7. merge で入った分岐の commit も上げ幅に数え、merge commit に付ける
 setup
 commit "feat: base"
 git -C "$base/work" tag -a v1.0.0 -m v1.0.0
 git -C "$base/work" switch -q -c side
-GIT_COMMITTER_DATE='2030-01-01T00:00:00Z' git -C "$base/work" commit -q --allow-empty -m "fix: parent"; o1=$(sha_of HEAD)
-GIT_COMMITTER_DATE='2020-01-01T00:00:00Z' git -C "$base/work" commit -q --allow-empty -m "fix: child"; o2=$(sha_of HEAD)
+commit "feat: on a branch"
 git -C "$base/work" switch -q -
-GIT_COMMITTER_DATE='2025-01-01T00:00:00Z' git -C "$base/work" commit -q --allow-empty -m "fix: main"
-git -C "$base/work" merge -q --no-ff -m "chore: merge" side
+commit "fix: on main"
+git -C "$base/work" merge -q --no-ff -m "Merge pull request #1" side; m1=$(sha_of HEAD)
 git -C "$base/work" push -q origin HEAD:main v1.0.0
 run
-p=$(remote_tag_of "$o1" | sed 's/^v1\.0\.//'); c=$(remote_tag_of "$o2" | sed 's/^v1\.0\.//')
-check "祖先の番号が子より小さい" yes "$( [ -n "$p" ] && [ -n "$c" ] && [ "$p" -lt "$c" ] && echo yes || echo no)"
+check "分岐の feat を数えて merge commit に付ける" v1.1.0 "$(remote_tag_of "$m1")"
+
+# 8. 既定ブランチが先へ進んでいたら付けない（後の push の実行がまとめて付ける）
+setup
+commit "feat: base"
+git -C "$base/work" tag -a v1.0.0 -m v1.0.0
+commit "fix: older push"; n1=$(sha_of HEAD)
+commit "fix: newer push"
+git -C "$base/work" push -q origin HEAD:main v1.0.0
+git -C "$base/work" checkout -q "$n1"
+run
+check "先へ進んだ main の古い commit には付けない" "" "$(remote_tag_of "$n1")"
+check "タグを1つも増やさない" 1 "$(git -C "$base/remote.git" tag | wc -l | tr -d ' ')"
+
+# 9. 既定ブランチの先頭を読めないときは、付けずに成功とせず失敗する
+setup
+commit "fix: unreachable"
+git -C "$base/work" push -q origin HEAD:main
+git -C "$base/work" remote set-url origin "$base/missing.git"
+check "リモートを読めなければ失敗する" failed "$(run 2>/dev/null && echo succeeded || echo failed)"
 
 exit $fail
