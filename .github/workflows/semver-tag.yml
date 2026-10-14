@@ -15,6 +15,9 @@ jobs:
   tag:
     # 既定ブランチへの push 以外では付けない。別ブランチで番号が先に使われると main のタグ付けが止まるため
     if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    # 呼び出し側が広い権限を渡しても、タグの push に要る分まで下げる
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -33,9 +36,15 @@ jobs:
           # 違う tree を指すタグを拒否する（git push も REST API も同じ）。そのため commit ごとではなく、
           # 既定ブランチの先頭そのものにだけ付ける。先頭が先へ進んでいれば、その push の実行に任せる
           head=$(git rev-parse HEAD)
-          # パイプにすると ls-remote の失敗が隠れて「先へ進んだ」と誤って成功するので、結果を一度受ける
-          remote=$(git ls-remote --exit-code origin "refs/heads/$DEFAULT_BRANCH")
-          tip=${remote%%[[:space:]]*}
+          # パイプにすると ls-remote の失敗が隠れて「先へ進んだ」と誤って成功するので、結果を一度受ける。
+          # ls-remote の pattern は末尾一致で a/refs/heads/main も拾うため、名前が完全に一致する行だけを使う
+          ref="refs/heads/$DEFAULT_BRANCH"
+          remote=$(git ls-remote --exit-code origin "$ref")
+          tip=$(printf '%s\n' "$remote" | awk -v r="$ref" '$2 == r { print $1 }')
+          if [ -z "$tip" ]; then
+            echo "error: $ref not found on origin" >&2
+            exit 1
+          fi
           if [ "$tip" != "$head" ]; then
             echo "skip: $DEFAULT_BRANCH has moved to $tip; the run for that push tags it"
             exit 0

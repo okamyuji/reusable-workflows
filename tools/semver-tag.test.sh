@@ -136,6 +136,19 @@ run
 check "先へ進んだ main の古い commit には付けない" "" "$(remote_tag_of "$n1")"
 check "タグを1つも増やさない" 1 "$(git -C "$base/remote.git" tag | wc -l | tr -d ' ')"
 
+# 10. 名前の末尾が一致する別ブランチ（a/refs/heads/main）があっても、main の先頭に付ける
+setup
+commit "feat: base"
+git -C "$base/work" tag -a v1.0.0 -m v1.0.0
+commit "fix: tip"; k1=$(sha_of HEAD)
+git -C "$base/work" push -q origin HEAD:main v1.0.0 "HEAD~1:refs/heads/a/refs/heads/main"
+run
+check "末尾が一致する別ブランチを先頭と取り違えない" v1.0.1 "$(remote_tag_of "$k1")"
+setup
+commit "fix: only a lookalike branch"
+git -C "$base/work" push -q origin "HEAD:refs/heads/a/refs/heads/main"
+check "末尾一致の別ブランチしか無ければ失敗する" failed "$(run 2>/dev/null && echo succeeded || echo failed)"
+
 # 9. 既定ブランチの先頭を読めないときは、付けずに成功とせず失敗する
 setup
 commit "fix: unreachable"
