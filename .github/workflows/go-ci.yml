@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       go-version:
-        description: "Go version. Empty means go.mod's toolchain directive is used."
+        description: "Go version, e.g. \"1.26.x\" (always resolved to the latest patch). Empty means go.mod's toolchain directive is used."
         type: string
         default: ""
       test-command:
@@ -32,6 +32,8 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ inputs.go-version }}
+          # 範囲指定（"1.26.x" など）がランナーのキャッシュにある古いパッチへ解決されないようにする
+          check-latest: true
           cache-dependency-path: ${{ inputs.working-directory }}/go.sum
 
       - name: Set up Go (from go.mod)
