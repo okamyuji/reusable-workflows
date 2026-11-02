@@ -1,0 +1,51 @@
+name: Flutter CI (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directory containing pubspec.yaml"
+        type: string
+        default: "."
+      build-android:
+        description: "Build a debug APK so Android Gradle and plugin updates are compiled"
+        type: boolean
+        default: true
+
+jobs:
+  flutter-ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Android Gradle Plugin 9 は JDK 17 以上を要る
+      - uses: actions/setup-java@v6
+        if: inputs.build-android
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build Android debug APK
+        if: inputs.build-android
+        run: flutter build apk --debug

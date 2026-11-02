@@ -122,6 +122,18 @@ jobs:
     uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
 ```
 
+### flutter-ci.yml
+
+`flutter pub get --enforce-lockfile`、`flutter analyze`、`flutter test`を順に実行し、最後にAndroidのdebug APKをビルドするワークフローです。APKのビルドで、Android Gradle Pluginやプラグインの更新もコンパイルして確かめます。Flutterは`stable`チャンネルの最新版、JDKは21を使います。`pubspec.lock`をコミットしておく必要があります。`pubspec.yaml`がリポジトリ直下にない場合は`working-directory`に渡します。Androidを持たないパッケージは`build-android: false`を渡します。
+
+```yaml
+jobs:
+  ci:
+    uses: okamyuji/reusable-workflows/.github/workflows/flutter-ci.yml@v1
+    with:
+      working-directory: frontend/app
+```
+
 ### dotnet-ci.yml
 
 書式（`dotnet format`）、ビルド、ユニットテストと行カバレッジ、CRAP値、変異テスト（Stryker.NET）、文書の機械検査（`tools/doclint.sh`）、Godot本体でのE2E主要導線の走破を実行します。`Core`（Godotに依存しないC#クラスライブラリ）と`tests/Core.Tests`、`tools/doclint.sh`、`tests/e2e/`を持つ構成を前提にします。
