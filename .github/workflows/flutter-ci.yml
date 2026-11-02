@@ -7,6 +7,10 @@ on:
         description: "Directory containing pubspec.yaml"
         type: string
         default: "."
+      flutter-version:
+        description: "Flutter SDK version (empty for the latest stable)"
+        type: string
+        default: ""
       build-android:
         description: "Build a debug APK so Android Gradle and plugin updates are compiled"
         type: boolean
@@ -35,6 +39,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: ${{ inputs.flutter-version }}
           cache: true
 
       - name: Install dependencies

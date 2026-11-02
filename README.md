@@ -124,7 +124,7 @@ jobs:
 
 ### flutter-ci.yml
 
-`flutter pub get --enforce-lockfile`、`flutter analyze`、`flutter test`を順に実行し、最後にAndroidのdebug APKをビルドするワークフローです。APKのビルドで、Android Gradle Pluginやプラグインの更新もコンパイルして確かめます。Flutterは`stable`チャンネルの最新版、JDKは21を使います。`pubspec.lock`をコミットしておく必要があります。`pubspec.yaml`がリポジトリ直下にない場合は`working-directory`に渡します。Androidを持たないパッケージは`build-android: false`を渡します。
+`flutter pub get --enforce-lockfile`、`flutter analyze`、`flutter test`を順に実行し、最後にAndroidのdebug APKをビルドするワークフローです。APKのビルドで、Android Gradle Pluginやプラグインの更新もコンパイルして確かめます。Flutterは既定で`stable`チャンネルの最新版、JDKは21を使います。新しいFlutterでSDKが固定する依存の版が変わると、既存の`pubspec.lock`のままでは`--enforce-lockfile`が失敗します。そのときは`flutter-version`に版を渡して固定するか、`pubspec.lock`を更新します。`pubspec.lock`をコミットしておく必要があります。`pubspec.yaml`がリポジトリ直下にない場合は`working-directory`に渡します。Androidを持たないパッケージは`build-android: false`を渡します。
 
 ```yaml
 jobs:
@@ -156,7 +156,7 @@ jobs:
 
 ### security-scan.yml
 
-gitleaksによる秘密情報スキャンです。PRでは、gitleaks CLIがPRの全コミット（`base.sha..head.sha`）を検査します。マージコミットは、自動マージの結果との差分（`--diff-merges=remerge`）を検査します。競合の解消で足した値は見つかり、ベースから取り込んだだけの既存の内容は検査し直しません。gitleaks-action@v3はPRのコミット一覧をページングせずに取得するため、31件目以降のコミットを検査できません。push起点の実行はgitleaks-action@v3を使い、必要なGITHUB_TOKENの受け渡しもこのワークフローが内蔵しています。呼び出し側で設定を忘れる心配はありません。
+gitleaksによる秘密情報スキャンです。PRでは、gitleaks CLIがPRの全コミット（`base.sha..head.sha`）を検査します。マージコミットは、自動マージの結果との差分（`--diff-merges=remerge`）を検査します。競合の解消で足した値は見つかり、ベースから取り込んだだけの既存の内容は検査し直しません。親が3つ以上のoctopusマージには、gitがこの差分を出しません。octopusマージのコミットだけで足した値は検査されません。gitleaks-action@v3はPRのコミット一覧をページングせずに取得するため、31件目以降のコミットを検査できません。push起点の実行はgitleaks-action@v3を使い、必要なGITHUB_TOKENの受け渡しもこのワークフローが内蔵しています。呼び出し側で設定を忘れる心配はありません。
 
 呼び出し側ジョブには次のpermissionsを付けます。PR起点の実行はCLIで検査するため、GitHub APIを呼びません。
 
