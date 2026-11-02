@@ -15,6 +15,10 @@ on:
         description: "Build a debug APK so Android Gradle and plugin updates are compiled"
         type: boolean
         default: true
+      build-runner:
+        description: "Run build_runner before analyze, for repos that do not commit generated *.g.dart files"
+        type: boolean
+        default: false
 
 jobs:
   flutter-ci:
@@ -44,6 +48,10 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
+
+      - name: Generate code
+        if: inputs.build-runner
+        run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Analyze
         run: flutter analyze
