@@ -29,14 +29,14 @@ jobs:
         # 入力をrunへ直接埋め込まず環境変数で渡す。`-s`などを混ぜるとapt-getのオプションとして読まれ、
         # 何もインストールせずに成功してしまうため、`-`で始まる語は拒否する。
         run: |
-          read -r -a apt_packages <<< "$APT_PACKAGES"
-          for package in "${apt_packages[@]}"; do
+          read -r -a pkgs <<< "$APT_PACKAGES"
+          for package in "${pkgs[@]}"; do
             case "$package" in
               -*) echo "apt-packages must contain package names, not options: $package" >&2; exit 1 ;;
             esac
           done
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends "${apt_packages[@]}"
+          sudo apt-get install -y --no-install-recommends "${pkgs[@]}"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
