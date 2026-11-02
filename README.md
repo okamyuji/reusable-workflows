@@ -144,7 +144,7 @@ jobs:
 
 ### security-scan.yml
 
-gitleaksによる秘密情報スキャンです。PRでは、gitleaks CLIがPRの全コミット（`base.sha..head.sha`）を検査します。gitleaks-action@v3はPRのコミット一覧をページングせずに取得するため、31件目以降のコミットを検査できません。push起点の実行はgitleaks-action@v3を使い、必要なGITHUB_TOKENの受け渡しもこのワークフローが内蔵しています。呼び出し側で設定を忘れる心配はありません。
+gitleaksによる秘密情報スキャンです。PRでは、gitleaks CLIがPRの全コミット（`base.sha..head.sha`）を検査します。マージコミットは1つ目の親との差分を検査するので、競合の解消だけで入った値も見つかります。gitleaks-action@v3はPRのコミット一覧をページングせずに取得するため、31件目以降のコミットを検査できません。push起点の実行はgitleaks-action@v3を使い、必要なGITHUB_TOKENの受け渡しもこのワークフローが内蔵しています。呼び出し側で設定を忘れる心配はありません。
 
 呼び出し側ジョブには次のpermissionsを付けます。PR起点の実行はCLIで検査するため、GitHub APIを呼びません。
 

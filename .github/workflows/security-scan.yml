@@ -39,7 +39,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: ./gitleaks detect --source . --redact -v --exit-code=2 --no-banner --log-opts="--no-merges ${BASE_SHA}..${HEAD_SHA}"
+        run: ./gitleaks detect --source . --redact -v --exit-code=2 --no-banner --log-opts="--diff-merges=first-parent ${BASE_SHA}..${HEAD_SHA}"
 
       - name: Incremental scan
         if: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000') }}
