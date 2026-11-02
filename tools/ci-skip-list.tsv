@@ -3,3 +3,4 @@
 # 対象は check-drift.sh が表示する違反行の対象と完全一致で判定される。`#` 始まりの行と空行は無視。
 NOT-UNIFIED	okamyuji/rails_tutorial/01_rails_philosophy	記事のコード例として置いた章ディレクトリ内のworkflowで、GitHubはリポジトリ直下以外のworkflowを実行しないため統一対象外
 NOT-UNIFIED	okamyuji/rails_tutorial/07_deployment_operations	記事のコード例として置いた章ディレクトリ内のworkflowで、GitHubはリポジトリ直下以外のworkflowを実行しないため統一対象外
+NOT-UNIFIED	okamyuji/go-ora	上流 sijms/go-ora へ PR を出すための fork で、workflow は上流のものをそのまま使うため統一対象外
