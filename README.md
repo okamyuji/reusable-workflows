@@ -124,7 +124,7 @@ jobs:
 
 ### flutter-ci.yml
 
-`flutter pub get --enforce-lockfile`、`flutter analyze`、`flutter test`を順に実行し、最後にAndroidのdebug APKをビルドするワークフローです。APKのビルドで、Android Gradle Pluginやプラグインの更新もコンパイルして確かめます。Flutterは既定で`stable`チャンネルの最新版、JDKは21を使います。新しいFlutterでSDKが固定する依存の版が変わると、既存の`pubspec.lock`のままでは`--enforce-lockfile`が失敗します。そのときは`flutter-version`に版を渡して固定するか、`pubspec.lock`を更新します。`pubspec.lock`をコミットしておく必要があります。`pubspec.yaml`がリポジトリ直下にない場合は`working-directory`に渡します。Androidを持たないパッケージは`build-android: false`を渡します。
+`flutter pub get --enforce-lockfile`、`flutter analyze`、`flutter test`を順に実行し、最後にAndroidのdebug APKをビルドするワークフローです。APKのビルドで、Android Gradle Pluginやプラグインの更新もコンパイルして確かめます。Flutterは既定で`stable`チャンネルの最新版、JDKは21を使います。新しいFlutterでSDKが固定する依存の版が変わると、既存の`pubspec.lock`のままでは`--enforce-lockfile`が失敗します。そのときは`flutter-version`に版を渡して固定するか、`pubspec.lock`を更新します。`pubspec.lock`をコミットしておく必要があります。`pubspec.yaml`がリポジトリ直下にない場合は`working-directory`に渡します。Androidを持たないパッケージは`build-android: false`を渡します。生成するコード（`*.g.dart`など）をコミットせず、build_runnerで作るリポジトリは`build-runner: true`を渡します。analyzeの前に`dart run build_runner build`を実行します。
 
 ```yaml
 jobs:
