@@ -156,7 +156,7 @@ jobs:
 
 ### security-scan.yml
 
-gitleaksによる秘密情報スキャンです。PRでは、gitleaks CLIがPRの全コミット（`base.sha..head.sha`）を検査します。マージコミットは、自動マージの結果との差分（`--diff-merges=remerge`）を検査します。競合の解消で足した値は見つかり、ベースから取り込んだだけの既存の内容は検査し直しません。親が3つ以上のoctopusマージには、gitがこの差分を出しません。octopusマージのコミットだけで足した値は検査されません。gitleaks-action@v3はPRのコミット一覧をページングせずに取得するため、31件目以降のコミットを検査できません。push起点の実行はgitleaks-action@v3を使い、必要なGITHUB_TOKENの受け渡しもこのワークフローが内蔵しています。呼び出し側で設定を忘れる心配はありません。
+gitleaksによる秘密情報スキャンです。PRでは、gitleaks CLIがPRの全コミット（`base.sha..head.sha`）を検査します。マージコミットは、自動マージの結果との差分（`--diff-merges=remerge`）を検査します。競合の解消で足した値は見つかり、ベースから取り込んだだけの既存の内容は検査し直しません。親が3つ以上のoctopusマージには、gitがこの差分を出しません。そのためPRの範囲にoctopusマージがあると、走査を失敗にします。枝を1つずつマージし直してください。gitleaks-action@v3はPRのコミット一覧をページングせずに取得するため、31件目以降のコミットを検査できません。push起点の実行はgitleaks-action@v3を使い、必要なGITHUB_TOKENの受け渡しもこのワークフローが内蔵しています。呼び出し側で設定を忘れる心配はありません。
 
 呼び出し側ジョブには次のpermissionsを付けます。PR起点の実行はCLIで検査するため、GitHub APIを呼びません。
 

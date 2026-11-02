@@ -39,7 +39,14 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: ./gitleaks detect --source . --redact -v --exit-code=2 --no-banner --log-opts="--diff-merges=remerge ${BASE_SHA}..${HEAD_SHA}"
+        run: |
+          # git は親が 3 つ以上のマージに remerge の差分を出さず、そのマージだけで入れた秘密を gitleaks が見ないので止める
+          octopus=$(git rev-list --min-parents=3 "${BASE_SHA}..${HEAD_SHA}")
+          if [ -n "$octopus" ]; then
+            echo "::error::octopus merge commits cannot be scanned for secrets; merge one branch at a time: ${octopus}"
+            exit 1
+          fi
+          ./gitleaks detect --source . --redact -v --exit-code=2 --no-banner --log-opts="--diff-merges=remerge ${BASE_SHA}..${HEAD_SHA}"
 
       - name: Incremental scan
         if: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000') }}

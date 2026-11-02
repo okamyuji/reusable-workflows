@@ -1,5 +1,5 @@
 #!/bin/sh
-# security-scan.test.sh — security-scan.yml の PR 走査の --log-opts で、マージコミットだけに入った秘密を見つけるかを検証する
+# security-scan.test.sh — security-scan.yml の PR 走査の手順が、マージコミットだけに入った秘密を見つけるかを検証する
 # 使い方: sh tools/security-scan.test.sh（失敗があれば終了コード1）
 set -eu
 
@@ -8,9 +8,16 @@ workflow="$here/../.github/workflows/security-scan.yml"
 base=$(mktemp -d)
 trap 'rm -rf "$base"' EXIT
 
-# PR 走査の行から --log-opts の値を取り出す（BASE_SHA と HEAD_SHA は後で埋める）
-opts=$(sed -n 's/.*--log-opts="\([^"]*\)".*/\1/p' "$workflow" | grep 'BASE_SHA' | head -1)
-[ -n "$opts" ] || { echo "FAIL: security-scan.yml から PR 走査の --log-opts を取り出せない"; exit 1; }
+# PR 走査の手順の run をそのまま取り出す（1 行の run と、run: | の塊の両方を読む）
+step="$base/pr-step.sh"
+awk '
+  /- name: Pull request scan/ { in_step = 1; next }
+  in_step && /^      - / { exit }
+  in_step && /^ *run: \|$/ { block = 1; next }
+  in_step && /^ *run: / { sub(/^ *run: /, ""); print; exit }
+  block { sub(/^          /, ""); print }
+' "$workflow" > "$step"
+grep -q gitleaks "$step" || { echo "FAIL: security-scan.yml から PR 走査の run を取り出せない"; exit 1; }
 
 # CI では security-scan.yml と同じ版を、同じ checksum で確かめて入れる
 gitleaks=$(command -v gitleaks || true)
@@ -41,10 +48,30 @@ scenario() {
   g switch -q feat && { g merge -q main >/dev/null 2>&1 || true; }
   printf '%s\n' "$2" > "$repo/f" && g add f && g commit -qm "merge main"
   h=$(g rev-parse HEAD)
-  o=$(printf '%s' "$opts" | sed "s/\${BASE_SHA}/$b/; s/\${HEAD_SHA}/$h/")
+  run_step "$repo" "$b" "$h"
+}
+
+# CI と同じく、作業用のリポジトリを今の場所にし、./gitleaks を置いて PR 走査の run を動かす
+run_step() { # $1 リポジトリ $2 BASE_SHA $3 HEAD_SHA
+  ln -sf "$gitleaks" "$1/gitleaks"
   code=0
-  "$gitleaks" detect --source "$repo" --redact --exit-code=2 --no-banner --log-opts="$o" >/dev/null 2>&1 || code=$?
+  (cd "$1" && BASE_SHA=$2 HEAD_SHA=$3 sh -e "$step") >/dev/null 2>&1 || code=$?
   echo "$code"
+}
+
+# 3 つの枝を一度にまとめる octopus マージで、マージコミットだけに秘密を入れる。git は親が 3 つ以上の
+# マージに remerge の差分を出さないので、gitleaks は見つけられない。走査は失敗（終了コード 1）にする
+octopus() {
+  repo="$base/repo-octopus"
+  git init -q -b main "$repo"
+  g() { git -C "$repo" -c user.name=t -c user.email=t@example.invalid -c commit.gpgSign=false "$@"; }
+  echo a > "$repo/f" && g add f && g commit -qm base
+  b=$(g rev-parse HEAD)
+  for br in x y; do g switch -qc "$br" main && echo "$br" > "$repo/$br" && g add "$br" && g commit -qm "$br"; done
+  g switch -qc feat main && echo feat > "$repo/feat" && g add feat && g commit -qm feat
+  g merge -q --no-commit x y >/dev/null 2>&1
+  key > "$repo/creds" && g add creds && g commit -qm "octopus"
+  run_step "$repo" "$b" "$(g rev-parse HEAD)"
 }
 
 # 秘密の形の値は実行時に作る（固定の値を置かない）
@@ -54,5 +81,6 @@ check "秘密のないマージは通す" 0 "$(scenario main resolved clean)"
 # main で検査済みの内容を取り込むだけのマージは検査し直さない（main 側で許可した検出が PR で再び出ないように）
 main_line=$(key)
 check "main の既存の内容を取り込むだけのマージは通す" 0 "$(scenario "$main_line" "$main_line" inherited)"
+check "octopus マージを含む PR は走査を失敗にする" 1 "$(octopus)"
 
 exit "$fail"
