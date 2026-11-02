@@ -82,6 +82,7 @@ Gemfile.lockをbundler-auditで検査し、既知の脆弱性があれば失敗�
 jobs:
   audit:
     strategy:
+      fail-fast: false
       matrix:
         dir: [rails/before, rails/after]
     uses: okamyuji/reusable-workflows/.github/workflows/ruby-audit.yml@v1
