@@ -28,17 +28,18 @@ check() { # $1 説明 $2 期待 $3 実際
   if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: expected [$2] got [$3]"; fail=1; fi
 }
 
-# 作業用のリポジトリを作り、base で分けた feat に main をマージする。$1 は競合の解消で書く内容
+# 作業用のリポジトリで、feat に main をマージする。PR と同じく main の先端から feat の先端までを走査する。
+# $1 は main 側で f に書く内容、$2 は競合の解消で f に書く内容、$3 はリポジトリ名
 scenario() {
-  repo="$base/repo-$2"
+  repo="$base/repo-$3"
   git init -q -b main "$repo"
   g() { git -C "$repo" -c user.name=t -c user.email=t@example.invalid -c commit.gpgSign=false "$@"; }
   echo a > "$repo/f" && g add f && g commit -qm base
-  b=$(g rev-parse HEAD)
   g switch -qc feat && echo feat > "$repo/f" && g commit -qam feat
-  g switch -q main && echo main > "$repo/f" && g commit -qam main
+  g switch -q main && printf '%s\n' "$1" > "$repo/f" && g commit -qam main
+  b=$(g rev-parse HEAD)
   g switch -q feat && { g merge -q main >/dev/null 2>&1 || true; }
-  printf '%s\n' "$1" > "$repo/f" && g add f && g commit -qm "merge main"
+  printf '%s\n' "$2" > "$repo/f" && g add f && g commit -qm "merge main"
   h=$(g rev-parse HEAD)
   o=$(printf '%s' "$opts" | sed "s/\${BASE_SHA}/$b/; s/\${HEAD_SHA}/$h/")
   code=0
@@ -47,8 +48,11 @@ scenario() {
 }
 
 # 秘密の形の値は実行時に作る（固定の値を置かない）
-key="AKIA$(LC_ALL=C tr -dc 'A-Z2-7' </dev/urandom | head -c 16)"
-check "競合の解消だけで入った秘密を見つける" 2 "$(scenario "aws_access_key_id = $key" secret)"
-check "秘密のないマージは通す" 0 "$(scenario "resolved" clean)"
+key() { echo "aws_access_key_id = AKIA$(LC_ALL=C tr -dc 'A-Z2-7' </dev/urandom | head -c 16)"; }
+check "競合の解消だけで入った秘密を見つける" 2 "$(scenario main "$(key)" secret)"
+check "秘密のないマージは通す" 0 "$(scenario main resolved clean)"
+# main で検査済みの内容を取り込むだけのマージは検査し直さない（main 側で許可した検出が PR で再び出ないように）
+main_line=$(key)
+check "main の既存の内容を取り込むだけのマージは通す" 0 "$(scenario "$main_line" "$main_line" inherited)"
 
 exit "$fail"
