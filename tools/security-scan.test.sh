@@ -25,7 +25,7 @@ if [ -z "$gitleaks" ]; then
   ver=$(sed -n 's/.*GITLEAKS_VERSION: *\([0-9.]*\).*/\1/p' "$workflow" | head -1)
   sum=$(sed -n 's/.*GITLEAKS_SHA256: *\([0-9a-f]*\).*/\1/p' "$workflow" | head -1)
   archive="gitleaks_${ver}_linux_x64.tar.gz"
-  curl -sSfLo "$base/$archive" "https://github.com/gitleaks/gitleaks/releases/download/v${ver}/${archive}"
+  curl -sSfL --retry 5 -o "$base/$archive" "https://github.com/gitleaks/gitleaks/releases/download/v${ver}/${archive}"
   (cd "$base" && echo "${sum}  ${archive}" | sha256sum -c - >/dev/null && tar -xzf "$archive" gitleaks)
   gitleaks="$base/gitleaks"
 fi
