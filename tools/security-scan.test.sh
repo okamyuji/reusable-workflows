@@ -25,7 +25,7 @@ if [ -z "$gitleaks" ]; then
   ver=$(sed -n 's/.*GITLEAKS_VERSION: *\([0-9.]*\).*/\1/p' "$workflow" | head -1)
   sum=$(sed -n 's/.*GITLEAKS_SHA256: *\([0-9a-f]*\).*/\1/p' "$workflow" | head -1)
   archive="gitleaks_${ver}_linux_x64.tar.gz"
-  curl -sSfLo "$base/$archive" "https://github.com/gitleaks/gitleaks/releases/download/v${ver}/${archive}"
+  curl -sSfL --retry 5 -o "$base/$archive" "https://github.com/gitleaks/gitleaks/releases/download/v${ver}/${archive}"
   (cd "$base" && echo "${sum}  ${archive}" | sha256sum -c - >/dev/null && tar -xzf "$archive" gitleaks)
   gitleaks="$base/gitleaks"
 fi
@@ -82,5 +82,6 @@ check "秘密のないマージは通す" 0 "$(scenario main resolved clean)"
 main_line=$(key)
 check "main の既存の内容を取り込むだけのマージは通す" 0 "$(scenario "$main_line" "$main_line" inherited)"
 check "octopus マージを含む PR は走査を失敗にする" 1 "$(octopus)"
+check "gitleaks の取得は一時的な HTTP エラーをリトライする" 1 "$(grep -c 'curl .*--retry .*gitleaks/releases' "$workflow")"
 
 exit "$fail"

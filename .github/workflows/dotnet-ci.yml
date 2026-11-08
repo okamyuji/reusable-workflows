@@ -145,7 +145,7 @@ jobs:
           mkdir -p godot-bin
           zip="Godot_v${{ inputs.godot-version }}-stable_mono_linux_x86_64.zip"
           url="https://github.com/godotengine/godot/releases/download/${{ inputs.godot-version }}-stable/$zip"
-          curl -sSfL -o "godot-bin/$zip" "$url"
+          curl -sSfL --retry 5 -o "godot-bin/$zip" "$url"
           actual=$(sha512sum "godot-bin/$zip" | cut -d' ' -f1)
           if [ "$actual" != "${{ inputs.godot-sha512 }}" ]; then
             echo "SHA-512の不一致です。expected=${{ inputs.godot-sha512 }} actual=$actual"
