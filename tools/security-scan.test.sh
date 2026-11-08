@@ -82,5 +82,6 @@ check "秘密のないマージは通す" 0 "$(scenario main resolved clean)"
 main_line=$(key)
 check "main の既存の内容を取り込むだけのマージは通す" 0 "$(scenario "$main_line" "$main_line" inherited)"
 check "octopus マージを含む PR は走査を失敗にする" 1 "$(octopus)"
+check "gitleaks の取得は一時的な HTTP エラーをリトライする" 1 "$(grep -c 'curl .*--retry .*gitleaks/releases' "$workflow")"
 
 exit "$fail"
