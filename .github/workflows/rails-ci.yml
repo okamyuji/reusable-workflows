@@ -143,7 +143,9 @@ jobs:
           working-directory: ${{ inputs.working-directory }}
       - name: Brakeman
         working-directory: ${{ inputs.working-directory }}
-        run: bin/brakeman --no-pager
+        # bin/brakeman from rails new adds --ensure-latest, which fails every caller for the 3-day dependency
+        # cooldown after each brakeman release; Dependabot keeps the version fresh instead.
+        run: bundle exec brakeman --no-pager
       - name: Bundler audit
         working-directory: ${{ inputs.working-directory }}
         run: bin/bundler-audit --update || bundle exec bundler-audit check --update
